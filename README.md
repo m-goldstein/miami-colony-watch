@@ -4,6 +4,8 @@ This review branch leads with the Bonus hackathon challenge: scattered field upd
 
 **Review branch:** `review/bonus-cat-care`, in the separate `miami-colony-watch-judges` worktree. The original checkout, running site, and database remain unchanged. [Review instructions and demo walkthrough](docs/BONUS_REVIEW.md).
 
+**Next-device design:** the homepage now includes conceptual microchip visits, a guarded food-gate simulator and an offline hub queue. **Build costs** at `/manufacturing.html` adds four editable hardware diagrams, Wi-Fi / BLE / LoRa options, an adjustable manufacturing budget, BOM / brief downloads and printable output. These features simulate proposed equipment; the working Arduino temperature demo remains intact. [Architecture, assumptions and walkthrough](docs/EDGE_NODE_DESIGN.md).
+
 The original component-test sketch remains unchanged in the neighboring `pins_layout/` directory. Monitoring firmware lives in this project's `firmware/colony_monitor/` directory.
 
 ## Start locally

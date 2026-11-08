@@ -51,6 +51,8 @@ Reports use inclusive UTC dates. Current census counts are labeled separately fr
 
 Run `npm test`, `npm run test:rescue-browser`, `npm run test:planning-browser`, `npm run test:serial-browser`, `npm run test:browser`, and `npm run build`.
 
+The next-device additions also have `npm run test:hardware-browser`. See [the edge-node design study](EDGE_NODE_DESIGN.md) for the RFID / servo / hub demo, manufacturing diagrams, budget assumptions and source references. These conceptual features persist independently inside the same fictional exercise; no physical hardware is actuated.
+
 The rescue browser test follows sample import, two sightings/one identity, a new cat, care assignment and completion, procedure evidence, dated report export, reload persistence, physical-data isolation, reset, and desktop/mobile rendering. It also checks thermal care tasks, matching saved temperatures in both station views, thermal CSV evidence, and legacy saved samples remaining unknown. USB checks use mock hardware. Hardware has not been deployed or field-validated by this change.
 
 ## Temperature sensor integration

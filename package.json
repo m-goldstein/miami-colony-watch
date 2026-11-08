@@ -15,6 +15,7 @@
     "test:serial-browser": "node test/serial-browser.js",
     "test:planning-browser": "node test/planning-browser.js",
     "test:rescue-browser": "node test/rescue-browser.js",
+    "test:hardware-browser": "node test/hardware-browser.js",
     "test:firmware": "node test/firmware.js",
     "gateway": "node --env-file-if-exists=.env gateway/index.js",
     "simulate": "node --env-file-if-exists=.env scripts/simulate.js",

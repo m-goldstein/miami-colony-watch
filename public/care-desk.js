@@ -1,4 +1,5 @@
 import { temperatureLabel, temperatureState, TEMPERATURE_ALERTS } from './temperature.js';
+import { EdgeConceptUI } from './edge-concept-ui.js';
 
 const el = id => document.getElementById(id);
 const put = (id, value) => { el(id).textContent = value; };
@@ -14,6 +15,7 @@ export class CareDesk {
   constructor({ notify, onChange, onStation }) {
     this.notify = notify; this.onChange = onChange; this.onStation = onStation; this.state = null; this.selected = null; this.taskId = null;
     this.queue = Promise.resolve(); this.stationSignature = ''; this.reportRequest = 0;
+    this.edgeUI = new EdgeConceptUI({ act: body => this.change('/concept', body), notify });
     const today = new Date(), week = new Date(Date.now() - 6 * 86400000);
     el('report-from').value = week.toISOString().slice(0, 10); el('report-to').value = today.toISOString().slice(0, 10);
     el('review-procedure-date').max = today.toISOString().slice(0, 10);
@@ -88,7 +90,7 @@ export class CareDesk {
     put('rescue-temperature', temperatureLabel(temperatureC));
     put('rescue-temperature-status', TEMPERATURE_ALERTS[temperature]?.badge || 'No temperature alert');
     el('rescue-station-temperature').dataset.status = temperature;
-    this.renderInbox(); this.renderReview(); this.renderNeeds(); this.renderCats();
+    this.renderInbox(); this.renderReview(); this.renderNeeds(); this.renderCats(); this.edgeUI.update(s);
   }
   renderInbox() {
     if (!this.state) return;

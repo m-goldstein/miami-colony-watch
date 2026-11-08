@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { id, text, number, fail } from './domain.js';
 import { scenarios } from '../public/colony-demo.js';
 import { temperatureState, TEMPERATURE_ALERTS } from '../public/temperature.js';
+import { initialEdgeConcept, applyEdgeConcept } from './edge-concept.js';
 
 const DEMO_ID = 'south-point-exercise-v1';
 const photo = '/assets/miami-community-cat.png';
@@ -16,7 +17,7 @@ const event = (state, kind, detail = {}, occurredAt = stamp()) => {
 export function initialCareDemo() {
   const createdAt = stamp();
   const names = ['Mango', 'Luna', 'Pepper', 'Coco', 'Miso', 'Sol', 'Olive', 'Cleo', 'Biscuit', 'Fern', 'Sunny', 'Harbor', 'Nori', 'Pippa'];
-  return { id: DEMO_ID, version: 2, demo: true, createdAt, importedAt: null,
+  return { id: DEMO_ID, version: 3, demo: true, createdAt, importedAt: null, edgeConcept: initialEdgeConcept(createdAt),
     colony: { id: 'example-south-point', name: 'South Point Park', neighborhood: 'South Beach', caretaker: 'Elena',
       note: 'Fictional exercise. No real colony location or caregiver contact details.' },
     cats: names.map((name, i) => ({ id: `example-cat-${i + 1}`, name, aliases: [],
@@ -81,6 +82,7 @@ export function careDemoRouter(store, enabled) {
       for (const reading of state.readings) if (!Object.hasOwn(reading, 'temperatureC')) reading.temperatureC = null;
       state.version = 2; store.put('care_demo', state);
     }
+    if (state.version < 3) { state.edgeConcept ||= initialEdgeConcept(state.createdAt); state.version = 3; store.put('care_demo', state); }
     return state;
   };
   const change = work => store.transaction(() => { const state = load(); work(state); store.put('care_demo', state); return state; });
@@ -91,6 +93,7 @@ export function careDemoRouter(store, enabled) {
     state.importedAt = stamp(); state.updates.push(...sampleBatch());
     event(state, 'batch_imported', { title: 'Six fictional field updates received', count: 6 });
   })));
+  router.post('/concept', (req, res) => res.json(change(state => applyEdgeConcept(state, req.body))));
   router.post('/updates', (req, res) => res.status(201).json(change(state => {
     if (state.updates.length >= 150) fail('Reset the fictional exercise before adding more updates', 409);
     const update = { id: id('phone-note'), kind: 'message', author: text(req.body.author, 'caregiver', 70),

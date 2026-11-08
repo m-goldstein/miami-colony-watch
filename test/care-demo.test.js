@@ -144,7 +144,7 @@ test('existing rescue exercises retain reviews and migrate absent temperature to
     const state = (await f.request()).data; state.version = 1; delete state.station.temperatureC;
     state.readings.push({ id: 'legacy-sample', foodPercent: 72 }); f.context.store.put('care_demo', state);
     const migrated = (await f.request()).data;
-    assert.equal(migrated.version, 2); assert.equal(migrated.station.temperatureC, null); assert.equal(migrated.readings[0].temperatureC, null);
+    assert.equal(migrated.version, 3); assert.equal(migrated.station.temperatureC, null); assert.equal(migrated.readings[0].temperatureC, null);
     assert.deepEqual(migrated.cats[0].aliases, ['Stripey']); assert.equal(migrated.updates[1].status, 'reviewed');
     assert.equal(migrated.createdAt, state.createdAt); assert.equal(migrated.events.length, state.events.length);
   } finally { await f.close(); }
