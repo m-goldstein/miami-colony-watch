@@ -196,7 +196,7 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
     const device = requireRecord('devices', text(req.body.deviceId, 'deviceId', 80));
     if (!device.demo) fail('Demo scenarios can only target fictional demo stations', 403);
     const scenario = req.body.scenario;
-    if (!['low-food', 'refill', 'rain', 'standing-water', 'no-echo', 'offline', 'recover'].includes(scenario)) fail('Unknown scenario');
+    if (!['low-food', 'refill', 'rain', 'standing-water', 'no-echo', 'hot', 'cold', 'freezing', 'no-temperature', 'offline', 'recover'].includes(scenario)) fail('Unknown scenario');
     if (scenario === 'offline') {
       store.put('devices', { ...device, simulationOffline: true, lastSeenAt: new Date(Date.now() - 10 * 60000).toISOString() });
       monitor(); return res.json({ accepted: true });
@@ -208,8 +208,12 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
     if (scenario === 'rain') { packet.rainAnalog = device.calibration.rainWetRaw; packet.rainDigital = device.calibration.rainActiveLow ? 0 : 1; }
     if (scenario === 'standing-water') packet.waterAnalog = device.calibration.waterWetRaw;
     if (scenario === 'no-echo') { packet.sonarDistanceCm = null; packet.sonarValidSamples = 0; }
+    if (scenario === 'hot') packet.temperatureC = 36;
+    if (scenario === 'cold') packet.temperatureC = 5;
+    if (scenario === 'freezing') packet.temperatureC = -2;
+    if (scenario === 'no-temperature') packet.temperatureC = null;
     if (scenario === 'recover') Object.assign(packet, { sonarDistanceCm: 10, waterAnalog: device.calibration.waterDryRaw,
-      rainAnalog: device.calibration.rainDryRaw, rainDigital: device.calibration.rainActiveLow ? 1 : 0 });
+      rainAnalog: device.calibration.rainDryRaw, rainDigital: device.calibration.rainActiveLow ? 1 : 0, temperatureC: 26 });
     res.json(ingest(packet, { ...device, simulationOffline: false }, 'simulation'));
   });
   app.get('/api/reports/summary.csv', (req, res) => {

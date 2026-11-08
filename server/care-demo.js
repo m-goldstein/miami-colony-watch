@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { id, text, number, fail } from './domain.js';
+import { scenarios } from '../public/colony-demo.js';
+import { temperatureState, TEMPERATURE_ALERTS } from '../public/temperature.js';
 
 const DEMO_ID = 'south-point-exercise-v1';
 const photo = '/assets/miami-community-cat.png';
@@ -14,7 +16,7 @@ const event = (state, kind, detail = {}, occurredAt = stamp()) => {
 export function initialCareDemo() {
   const createdAt = stamp();
   const names = ['Mango', 'Luna', 'Pepper', 'Coco', 'Miso', 'Sol', 'Olive', 'Cleo', 'Biscuit', 'Fern', 'Sunny', 'Harbor', 'Nori', 'Pippa'];
-  return { id: DEMO_ID, version: 1, demo: true, createdAt, importedAt: null,
+  return { id: DEMO_ID, version: 2, demo: true, createdAt, importedAt: null,
     colony: { id: 'example-south-point', name: 'South Point Park', neighborhood: 'South Beach', caretaker: 'Elena',
       note: 'Fictional exercise. No real colony location or caregiver contact details.' },
     cats: names.map((name, i) => ({ id: `example-cat-${i + 1}`, name, aliases: [],
@@ -22,7 +24,7 @@ export function initialCareDemo() {
       tnvrStatus: i < 11 ? 'confirmed' : 'unknown', tnvrEvidence: i < 11 ? 'Fictional baseline record predating this exercise; no new procedure claimed.' : '',
       lastSeenAt: null, observations: [], photo: i === 0 ? photo : null })),
     updates: [], tasks: [], visits: [], events: [],
-    station: { id: 'EXAMPLE-UNO-01', colonyId: 'example-south-point', scenario: 'calm', online: true, foodPercent: 72, wet: false, waterIndex: 6, receivedAt: createdAt, source: 'fictional Arduino scenario' },
+    station: { id: 'EXAMPLE-UNO-01', colonyId: 'example-south-point', scenario: 'calm', online: true, foodPercent: 72, wet: false, waterIndex: 6, temperatureC: 26, receivedAt: createdAt, source: 'fictional Arduino scenario' },
     readings: [], pilot: { equipment: '', enclosure: '', power: '', gateway: '', monthly: '', maintenance: '', notes: '' } };
 }
 
@@ -73,6 +75,12 @@ export function careDemoRouter(store, enabled) {
   const load = () => {
     let state = store.get('care_demo', DEMO_ID);
     if (!state) state = store.put('care_demo', initialCareDemo());
+    if (state.version < 2) {
+      // Keep reviews and historical evidence; an older sample has no temperature measurement.
+      if (!Object.hasOwn(state.station, 'temperatureC')) state.station.temperatureC = null;
+      for (const reading of state.readings) if (!Object.hasOwn(reading, 'temperatureC')) reading.temperatureC = null;
+      state.version = 2; store.put('care_demo', state);
+    }
     return state;
   };
   const change = work => store.transaction(() => { const state = load(); work(state); store.put('care_demo', state); return state; });
@@ -151,17 +159,18 @@ export function careDemoRouter(store, enabled) {
   })));
   router.post('/station', (req, res) => res.json(change(state => {
     const scenario = req.body.scenario;
-    if (!['food', 'refill', 'rain', 'water', 'offline', 'calm'].includes(scenario)) fail('Choose a station scenario');
+    if (!Object.hasOwn(scenarios, scenario)) fail('Choose a station scenario');
     if (state.readings.length >= 500) fail('Reset the fictional exercise before recording more sample readings', 409);
-    const reading = { ...state.station, scenario, receivedAt: stamp(), id: id('example-reading'), online: scenario !== 'offline' };
-    if (scenario === 'food') Object.assign(reading, { foodPercent: 14, wet: false, waterIndex: 6 });
-    if (scenario === 'refill') Object.assign(reading, { foodPercent: 92, wet: false, waterIndex: 6 });
-    if (scenario === 'calm') Object.assign(reading, { foodPercent: 72, wet: false, waterIndex: 6 });
-    if (scenario === 'rain') Object.assign(reading, { foodPercent: 72, wet: true, waterIndex: 18 });
-    if (scenario === 'water') Object.assign(reading, { foodPercent: 72, wet: true, waterIndex: 84 });
+    const spec = scenarios[scenario];
+    const reading = { ...state.station, scenario, receivedAt: stamp(), id: id('example-reading'), online: spec.online,
+      foodPercent: spec.food, wet: spec.rain, waterIndex: spec.water, temperatureC: spec.temperatureC ?? 26 };
     state.station = reading; state.readings.push(reading);
     const record = event(state, 'sensor_reading', { sourceId: reading.id, title: `Arduino exercise: ${scenario}`, reading: { ...reading } });
-    if (!['refill', 'calm'].includes(scenario)) addTask(state, { type: scenario === 'food' ? 'food' : ['rain', 'water'].includes(scenario) ? 'shelter' : 'connection', sourceId: `station:${scenario}`,
+    const temperature = temperatureState(reading.temperatureC), thermalAlert = TEMPERATURE_ALERTS[temperature];
+    if (reading.online && thermalAlert) addTask(state, { type: `temperature-${temperature}`, sourceId: `station:temperature-${temperature}`,
+      evidenceId: record.id, title: thermalAlert.title, detail: thermalAlert.detail,
+      severity: ['hot', 'freezing'].includes(temperature) ? 'urgent' : 'warning', origin: 'Arduino exercise' });
+    else if (!['refill', 'calm'].includes(scenario)) addTask(state, { type: scenario === 'food' ? 'food' : ['rain', 'water'].includes(scenario) ? 'shelter' : 'connection', sourceId: `station:${scenario}`,
       evidenceId: record.id, title: scenario === 'food' ? 'Refill the reserve and inspect the hopper' : ['rain', 'water'].includes(scenario) ? 'Check the shelter and station base when access is safe' : 'Check the station connection',
       severity: scenario === 'food' ? 'urgent' : 'warning', origin: 'Arduino exercise' });
   })));
@@ -197,8 +206,8 @@ export function careDemoRouter(store, enabled) {
     const cell = value => { let s = String(value ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; return `"${s.replaceAll('"', '""')}"`; };
     const rows = [['Colony', report.colony], ['Provenance', 'Fictional rescue exercise'], ['Period', `${report.from} through ${report.to}`],
       ['CURRENT CENSUS'], ...Object.entries(report.current), ['DATED ACTIVITY'], ...Object.entries(report.period),
-      ['EVIDENCE ID', 'WHEN', 'KIND', 'SOURCE ID', 'CAT ID', 'DETAIL', 'REVIEWER / CAREGIVER', 'REFERENCE', 'RECORDED AT', 'EVIDENCE NOTE'],
-      ...report.evidence.map(item => [item.id, item.occurredAt, item.kind, item.sourceId, item.catId, item.title, item.reviewer || item.assignee, item.reference, item.recordedAt || item.occurredAt, item.note]),
+      ['EVIDENCE ID', 'WHEN', 'KIND', 'SOURCE ID', 'CAT ID', 'DETAIL', 'REVIEWER / CAREGIVER', 'REFERENCE', 'RECORDED AT', 'EVIDENCE NOTE', 'AMBIENT TEMPERATURE C'],
+      ...report.evidence.map(item => [item.id, item.occurredAt, item.kind, item.sourceId, item.catId, item.title, item.reviewer || item.assignee, item.reference, item.recordedAt || item.occurredAt, item.note, item.reading?.online ? item.reading.temperatureC : null]),
       ['ORIGINAL SOURCE ID', 'OBSERVED AT', 'KIND', 'AUTHOR', 'ORIGINAL WORDS', 'ATTACHMENT', 'REVIEW STATUS', 'LINKED CAT', 'REVIEW NOTE'],
       ...state.updates.filter(update => report.evidence.some(item => item.sourceId === update.id) || (update.observedAt.slice(0, 10) >= report.from && update.observedAt.slice(0, 10) <= report.to))
         .map(update => [update.id, update.observedAt, update.kind, update.author, update.text, update.attachment, update.status, update.catId, update.reviewNote]),

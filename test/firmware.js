@@ -17,7 +17,8 @@ try {
   const run = spawnSync(binary, [], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   const frames = run.stdout.trim().split('\n').map(JSON.parse);
-  assert.equal(frames.length, 2); assert.equal(frames[0].sonarDistanceCm, 20); assert.equal(frames[1].sonarDistanceCm, null);
+  assert.equal(frames.length, 5); assert.equal(frames[0].sonarDistanceCm, 20); assert.equal(frames[1].sonarDistanceCm, null);
+  assert.deepEqual(frames.map(f => f.temperatureC), [26, null, 36, 5, -2]);
   assert.equal(parseSerialLine(JSON.stringify(frames[0])).data.foodPercent, 40);
   assert.equal(parseSerialLine(JSON.stringify(frames[1])).data.foodPercent, null);
   context = createApp({ dbPath: ':memory:', demoMode: false });
@@ -33,8 +34,10 @@ try {
     assert.equal(ack.accepted, true);
     const s = await (await fetch(apiUrl + '/api/state')).json();
     assert.equal(s.devices[0].measurements.foodPercent, i === 0 ? 40 : null);
+    assert.equal(s.devices[0].measurements.temperatureC, frames[i].temperatureC);
+    if (i >= 2) assert.ok(s.tasks.some(t => t.type === ['temperature-hot', 'temperature-cold', 'temperature-freezing'][i - 2]));
   }
-  console.log('PASS: host firmware median/no-echo/rotation/display/ACK checks → actual JSON → gateway protocol → authenticated HTTP → SQLite → 40% then unknown dashboard data. Physical sensors are mocked.');
+  console.log('PASS: host firmware sonar/rotation/display/ACK and DHT11 sampling/LED/fault/recovery checks → actual JSON → gateway → authenticated API → SQLite → temperature readings and heat/cold/freezing tasks. Physical sensors are mocked.');
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));
   if (context) context.store.close();

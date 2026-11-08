@@ -25,7 +25,7 @@ test('serial protocol validates quality and raw ranges without inventing food on
   const missing = { ...reading, sequence: 1, sonarDistanceCm: null, sonarValidSamples: 0, foodPercent: null };
   assert.equal(parseSerialLine(JSON.stringify(missing)).data.foodPercent, null);
   for (const patch of [{ sonarDistanceCm: null }, { rainAnalog: 1024 }, { sequence: -1 }, { rainDigital: 2 },
-    { foodPercent: 101 }, { screen: 4 }, { rainWet: 'false' }, { buttonPressed: 0 }, { sonarValidSamples: 2 }]) {
+    { foodPercent: 101 }, { screen: 5 }, { rainWet: 'false' }, { buttonPressed: 0 }, { sonarValidSamples: 2 }]) {
     assert.throws(() => parseSerialLine(JSON.stringify({ ...reading, ...patch })));
   }
   assert.throws(() => parseSerialLine('[]'));

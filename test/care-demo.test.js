@@ -116,3 +116,36 @@ test('report validation rejects impossible and reversed dates; baseline confirma
   assert.equal(report.current.confirmedTnvr, 11); assert.equal(report.period.procedures, 0);
   assert.throws(() => careReport(state, '2026-02-31', today())); assert.throws(() => careReport(state, '2026-12-10', '2026-12-01'));
 });
+
+test('thermal scenarios persist matching temperatures and distinct care tasks through recovery and reporting', async () => {
+  const f = await fixture();
+  try {
+    for (const [scenario, value, severity] of [['hot', 36, 'urgent'], ['cold', 5, 'warning'], ['freezing', -2, 'urgent'], ['hot', 36, 'urgent']]) {
+      const result = await f.request('/station', { scenario });
+      assert.equal(result.status, 200); assert.equal(result.data.station.temperatureC, value);
+      const tasks = result.data.tasks.filter(task => task.type === `temperature-${scenario}`);
+      assert.equal(tasks.length, 1); assert.equal(tasks[0].severity, severity);
+      const evidence = result.data.events.find(item => item.id === tasks[0].evidenceId);
+      assert.equal(evidence.reading.temperatureC, value);
+    }
+    const state = (await f.request('/station', { scenario: 'calm' })).data;
+    assert.equal(state.station.temperatureC, 26); assert.equal(state.tasks.filter(task => task.status === 'open').length, 3);
+    const report = await f.request(`/report.csv?from=${today()}&to=${today()}`);
+    assert.match(report.data, /AMBIENT TEMPERATURE C/); assert.match(report.data, /Arduino exercise: freezing/);
+    assert.ok(state.events.some(item => item.reading?.temperatureC === -2));
+  } finally { await f.close(); }
+});
+
+test('existing rescue exercises retain reviews and migrate absent temperature to unknown', async () => {
+  const f = await fixture();
+  try {
+    await f.request('/import', {});
+    await f.request('/updates/morning-02/review', review('existing', { catId: 'example-cat-1', alias: 'Stripey' }));
+    const state = (await f.request()).data; state.version = 1; delete state.station.temperatureC;
+    state.readings.push({ id: 'legacy-sample', foodPercent: 72 }); f.context.store.put('care_demo', state);
+    const migrated = (await f.request()).data;
+    assert.equal(migrated.version, 2); assert.equal(migrated.station.temperatureC, null); assert.equal(migrated.readings[0].temperatureC, null);
+    assert.deepEqual(migrated.cats[0].aliases, ['Stripey']); assert.equal(migrated.updates[1].status, 'reviewed');
+    assert.equal(migrated.createdAt, state.createdAt); assert.equal(migrated.events.length, state.events.length);
+  } finally { await f.close(); }
+});

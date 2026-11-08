@@ -4,10 +4,12 @@ import { scenarios, demoReading, careState } from './colony-demo.js';
 import { ColonyMap } from './colony-map.js';
 import { ColonyPlanning } from './colony-planning.js';
 import { CareDesk } from './care-desk.js';
+import { temperatureState, temperatureLabel, TEMPERATURE_ALERTS } from './temperature.js';
 
 const el = id => document.getElementById(id);
-const text = (id, value) => { el(id).textContent = value; };
-const screens = ['Food reserve', 'Rain surface', 'Standing water', 'Station health'];
+const text = (id, value) => { if (el(id).textContent !== String(value)) el(id).textContent = value; };
+const screens = ['Food reserve', 'Rain surface', 'Standing water', 'Station health', 'Temperature'];
+let screenCount = 5;
 const sessionId = () => globalThis.crypto?.randomUUID?.() || `browser-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const supported = window.isSecureContext && typeof navigator.serial?.requestPort === 'function';
 const history = [], logs = [];
@@ -25,7 +27,7 @@ const careDesk = new CareDesk({ notify, onChange: state => {
   if (careExercise && careExercise.createdAt !== state.createdAt) { demo.history.length = 0; demo.events.length = 0; demo.sequence = 0; tourStep = null; }
   careExercise = state; catsSignature = ''; render();
 },
-  onStation: scenario => { if (mode === 'demo') applyScenario(scenario, false, false); } });
+  onStation: (scenario, station) => { if (mode === 'demo') applyScenario(scenario, false, false, station); } });
 for (let i = 0; i < 8; i++) {
   const reading = demoReading('calm', demo.sequence++);
   reading.foodPercent += 7 - i; reading.sonarDistanceCm = +(30 - reading.foodPercent * 0.25).toFixed(1);
@@ -55,16 +57,17 @@ function activeColony() {
 }
 function setMode(value) {
   mode = value; catsSignature = '';
-  if (mode === 'live') { tourStep = null; text('connection-message', connection.state === 'connected' ? startupMessage : 'Connect your station for live food, rain, and water readings.'); }
+  if (mode === 'live') { tourStep = null; text('connection-message', connection.state === 'connected' ? startupMessage : 'Connect your station for live food, rain, water, and temperature readings.'); }
   else el('device-key').value = '';
   render(); drawChart();
 }
-function applyScenario(key, manual = true, persist = true) {
+function applyScenario(key, manual = true, persist = true, savedStation = null) {
   if (!scenarios[key]) return;
   if (manual) tourStep = null;
   if (persist) { void careDesk.station(key); return; }
   mode = 'demo'; demo.scenario = key;
   const point = { reading: demoReading(key, demo.sequence++), at: new Date().toISOString(), bootId: 'demo-preview' };
+  if (savedStation) { point.reading.temperatureC = savedStation.temperatureC ?? null; point.at = savedStation.receivedAt; }
   demo.latest = point; demo.history.push(point); if (demo.history.length > 120) demo.history.shift();
   if (manual) tourStep = null;
   demo.events.unshift({ title: scenarios[key].label, detail: 'Demo scenario · no live device or workspace records changed.', at: point.at });
@@ -151,6 +154,15 @@ function render() {
   text('water-note', water == null ? 'A fresh probe reading helps identify local standing water.' : water >= 60 ? 'The probe is wet. Check the site when access is safe.' : 'A heads-up if standing water reaches the probe. This is not a flood all-clear.');
   el('water-level').style.height = `${water || 0}%`; el('water-meter').style.width = `${water || 0}%`;
   text('water-raw', data ? `Probe A2: ${data.waterAnalog} · index, not depth` : 'Wetness index · not water depth');
+  const temperature = data?.temperatureC, temperatureStatus = temperatureState(temperature), temperatureAlert = TEMPERATURE_ALERTS[temperatureStatus];
+  el('temperature-card').dataset.status = temperatureStatus;
+  text('temperature-value', temperatureLabel(temperature));
+  text('temperature-status', !data ? 'Reading unavailable' : temperatureAlert?.badge || 'No temperature alert');
+  text('temperature-note', temperatureStatus === 'unknown' ? 'A fresh DHT11 reading is needed. Check the thermometer and assess the site in person.' : 'Ambient temperature at the station. Check the cats and shelter in person.');
+  text('temperature-alert', temperatureAlert && temperatureStatus !== 'unknown' ? temperatureAlert.detail : '');
+  el('temperature-alert').hidden = !temperatureAlert || temperatureStatus === 'unknown';
+  el('temperature-marker').hidden = temperatureStatus === 'unknown';
+  if (temperatureStatus !== 'unknown') el('temperature-marker').style.left = `${Math.max(0, Math.min(100, (temperature + 10) / 55 * 100))}%`;
   const colony = activeColony(); text('colony-location', mode === 'demo' ? `${colony?.name || 'South Point Park'} · example colony` : colony ? `${colony.name} · linked station` : 'Your colony · live station');
   text('scene-badge', care.badge); text('care-badge', care.badge.toUpperCase()); text('care-title', care.title); text('care-detail', care.detail);
   el('care').dataset.kind = care.kind;
@@ -161,7 +173,7 @@ function render() {
   Array.from(el('echo-dots').children).forEach((dot, i) => dot.classList.toggle('valid', !!data && i < data.sonarValidSamples));
   text('encoder-value', data?.encoderPosition != null ? data.encoderPosition : '—');
   text('encoder-button', `Button: ${data?.buttonPressed === undefined ? '—' : data.buttonPressed ? 'PRESSED' : 'released'}`);
-  text('screen-value', data?.screen !== undefined ? `OLED: ${data.screen + 1}/4 · ${screens[data.screen]}` : 'OLED screen: waiting');
+  text('screen-value', data?.screen !== undefined ? `OLED: ${data.screen + 1}/${mode === 'demo' ? 5 : screenCount} · ${screens[data.screen]}` : 'OLED screen: waiting');
   text('packet-value', mode === 'demo' ? `${demo.history.length} demo samples` : `${readingCount} readings`);
   text('uptime-value', data ? `Board uptime: ${(data.uptimeMs / 60000).toFixed(1)} min${mode === 'demo' ? ' (simulated)' : ''}` : 'Board uptime: —');
   text('sequence-value', data ? `Sequence: ${data.sequence}` : 'Sequence: —');
@@ -196,7 +208,7 @@ const connection = new SerialConnection({
     if (frame.type === 'event') {
       const event = frame.data; if (event.firmware) firmware = event.firmware;
       if (event.event === 'boot') { bootId = sessionId(); previousSequence = null; latest = null; confirmedInterval = null; }
-      if (event.event === 'hello') confirmedInterval = event.telemetryIntervalMs;
+      if (event.event === 'hello') { confirmedInterval = event.telemetryIntervalMs; screenCount = event.screenCount === 4 ? 4 : 5; }
       if (event.event === 'stream') confirmedInterval = event.intervalMs;
       log(event.event === 'error' ? 'error' : 'board', raw);
     } else {

@@ -4,9 +4,9 @@
 
 ```mermaid
 flowchart LR
-  H[HC-SR04 + rain + water probe] --> U[Uno: median filter and raw ADC]
+  H[HC-SR04 + rain + water probe + DHT11] --> U[Uno: median filter and raw ADC]
   E[Rotary encoder] --> U
-  U --> O[OLED: four local screens]
+  U --> O[OLED: five local screens]
   U --> L[Traffic and RGB status]
   U -- USB NDJSON --> G[Node serial gateway]
   U -- USB Web Serial --> B[Attended browser console]
@@ -33,7 +33,7 @@ A production database migration must also make the routes asynchronous; replacin
 Firmware emits one JSON line every ten seconds. Example:
 
 ```json
-{"schemaVersion":1,"sequence":42,"uptimeMs":430000,"sonarDistanceCm":20.0,"sonarValidSamples":5,"rainAnalog":900,"rainDigital":1,"waterAnalog":100}
+{"schemaVersion":1,"sequence":42,"uptimeMs":430000,"sonarDistanceCm":20.0,"sonarValidSamples":5,"rainAnalog":900,"rainDigital":1,"waterAnalog":100,"temperatureC":26.0}
 ```
 
 A boot event with `event: "boot"` is informative and ignored by the gateway. No free-form diagnostic text is required on the telemetry channel.
@@ -57,6 +57,7 @@ API constraints:
 - `sampledAt`: within the past seven days and at most five minutes ahead of service time.
 - `sonarDistanceCm`: 2–400, with at least three valid samples; otherwise `null` with fewer than three valid samples.
 - `sonarValidSamples`: 0–5; rain/water ADC: integers 0–1023; rain DO: 0 or 1.
+- `temperatureC`: finite Celsius from −20 to 60 for supported DHT11 revisions, or `null` on failed reads. Missing fields from older schema-v1 firmware normalize to `null`. Verify module rating; common DHT11s only support 0–50°C.
 - The server assigns provenance: a provisioned physical device is `hardware`, while a fictional demo device is `simulation`. A client cannot promote itself to physical provenance by sending a `source` property.
 
 A success response is HTTP 202:
@@ -84,10 +85,14 @@ A network interruption with the gateway running is buffered. A dead gateway, dis
 | Fewer than 3 valid sonar samples | Unknown food; inspect sonar |
 | Rain DO in configured wet state | Check shelter / food protection |
 | Water wetness index at/above configured threshold | Inspect local standing water |
+| Temperature ≥32°C | Urgent heat care check |
+| Temperature >0°C and ≤7°C | Cold care warning |
+| Temperature ≤0°C | Urgent freezing care check |
+| Thermometer absent or failed on a fresh packet | Unknown temperature; inspect DHT11 |
 | New human-entered cat identity | Identity/TNVR review task |
 | Human observation marked for follow-up | Caregiver review task |
 
-The default food threshold is 25%; water threshold is 60 on the normalized wetness index. Thresholds are prototype operational defaults. No rule diagnoses an animal, confirms a flood, certifies a safe route, counts cats, or automatically operates a feeder/trap.
+The default food threshold is 25%; water threshold is 60 on the normalized wetness index. Temperature defaults and sensor limits are described in the [DHT11 guide](HARDWARE.md#dht11-thermometer-on-d7). Thresholds are prototype operational defaults. No rule diagnoses an animal, confirms a flood, certifies a safe route, counts cats, or automatically operates a feeder/trap.
 
 Each active sensor task is deduplicated per device/type. Assignment and completion are caregiver actions, independent of whether a reading has recovered. A completed task suppresses another task of the same type for thirty minutes; a continuing condition can then create another check. Events and visits remain stored for review. The current pilot has no automated SMS/email dispatcher or push-notification service.
 

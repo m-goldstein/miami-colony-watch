@@ -4,9 +4,9 @@ This branch repositions ColonyWatch around the supplied Bonus challenge: origina
 
 ## Review in isolation
 
-Branch: `review/bonus-cat-care`, based on `main` at `265f9f0`.
+Branch: `review/bonus-cat-care`. The original feature was based on `265f9f0`; the branch now also merges main commit `c524a90` and its DHT11 temperature implementation.
 
-The separate checkout is `/home/max/hackathon/DevDayHackathon/miami-colony-watch-judges`. This task leaves the original `miami-colony-watch` checkout and its service on port 3000 alone. Independent temperature/hardware edits appearing there during this work are not part of this branch; its comparison baseline remains `265f9f0`.
+The separate checkout is `/home/max/hackathon/DevDayHackathon/miami-colony-watch-judges`. This task leaves the original `miami-colony-watch` checkout and its service on port 3000 alone. The temperature/hardware changes from main commit `c524a90` are included in this branch; the main checkout is not edited or restarted by the merge.
 
 ```bash
 cd /home/max/hackathon/DevDayHackathon/miami-colony-watch-judges
@@ -23,7 +23,7 @@ Open http://127.0.0.1:3001. This command uses this worktree's `data/review.sqlit
 3. Review the concern about Pippa and link her existing identity. A care follow-up appears. Assign Elena, save, then complete it with an outcome note and the number of cats actually observed. A dated care visit is recorded. A visit does not alter census or sensor evidence.
 4. Review Pebble as a new, distinctly described identity if the available evidence supports that decision. The census becomes 15 and TNVR remains unknown. Unresolved updates can stay pending; dismissing requires a reason.
 5. Review the location handoff as a colony note. Review Pippa's fictional clinic note only after entering a procedure date, reference, and checked-evidence note. The confirmed TNVR total increases once, with a dated completion in the report. Baseline confirmations never masquerade as new procedures.
-6. Try **low food**. The Arduino exercise creates a linked refill follow-up. Assign and complete the visit, then separately record the later refill reading. The task outcome and sensor observation remain separate evidence.
+6. Try **low food**. The Arduino exercise creates a linked refill follow-up. Assign and complete the visit, then separately record the later refill reading. The task outcome and sensor observation remain separate evidence. Heat, cold and freezing exercises use the same thresholds and scenario values as the live dashboard, create distinct care checks, and retain ambient temperature in evidence exports.
 7. Review the report date range, follow the source links, and download the evidence CSV. Reload the page: reviews, aliases, care assignments, completed visits, sensor exercise state, plans, and pilot assumptions persist.
 8. **Reset exercise** clears only the isolated fictional exercise after a clear confirmation. Existing workspace/physical-device records remain unchanged.
 
@@ -51,7 +51,13 @@ Reports use inclusive UTC dates. Current census counts are labeled separately fr
 
 Run `npm test`, `npm run test:rescue-browser`, `npm run test:planning-browser`, `npm run test:serial-browser`, `npm run test:browser`, and `npm run build`.
 
-The rescue browser test follows sample import, two sightings/one identity, a new cat, care assignment and completion, procedure evidence, dated report export, reload persistence, physical-data isolation, reset, and desktop/mobile rendering. USB checks use mock hardware. Hardware has not been deployed or field-validated by this change.
+The rescue browser test follows sample import, two sightings/one identity, a new cat, care assignment and completion, procedure evidence, dated report export, reload persistence, physical-data isolation, reset, and desktop/mobile rendering. It also checks thermal care tasks, matching saved temperatures in both station views, thermal CSV evidence, and legacy saved samples remaining unknown. USB checks use mock hardware. Hardware has not been deployed or field-validated by this change.
+
+## Temperature sensor integration
+
+Main commit `c524a90` adds the DHT11 temperature sensor on D7, firmware sampling and a fifth OLED page, USB/gateway/API transport, current measurements, map filtering, shared thresholds, and heat/cold/freezing inspection tasks. These changes are merged, not independently reimplemented. The persistent rescue exercise reuses the shared scenario definitions and alert copy. Existing exercise records migrate without resetting their reviews; historical samples without a temperature value remain unknown.
+
+The main implementation does not read or report DHT11 humidity. The review station and evidence detail state that limitation explicitly. No humidity measurement or heat index is invented. Firmware behavior and hardware guidance remain identical to the merged main commit.
 
 ## Submission
 

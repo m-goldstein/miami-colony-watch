@@ -1,3 +1,5 @@
+import { temperatureLabel, temperatureState, TEMPERATURE_ALERTS } from './temperature.js';
+
 const el = id => document.getElementById(id);
 const put = (id, value) => { el(id).textContent = value; };
 export const outlookScenarios = {
@@ -132,6 +134,8 @@ export class ColonyPlanning {
       '', 'STATION SNAPSHOT', `Source: ${c?.mode === 'demo' ? 'Illustrative Arduino scenario' : 'Direct USB Arduino'} · received: ${c?.receivedAt || 'unavailable'}`,
       `Food reserve: ${r?.foodPercent == null ? 'Unknown' : r.foodPercent + '% (approximate hopper fill)'}`,
       `Rain plate: ${r ? r.rainWet ? 'Wet' : 'Dry' : 'Unknown'}`, `Station-base wetness index: ${r?.waterIndex ?? 'Unknown'} (not flood depth)`,
+      `Station temperature: ${temperatureLabel(r?.temperatureC)} (ambient, not cat body temperature)`,
+      `Temperature check: ${TEMPERATURE_ALERTS[temperatureState(r?.temperatureC)]?.badge || 'No temperature alert'}`,
       '', 'AREA OUTLOOK', this.weather ? `NWS South Beach area · issued ${this.weather.updatedAt} · retrieved ${this.weather.retrievedAt}` : c?.mode === 'demo' ? `Illustrative exercise: ${outlookScenarios[this.scenario].title} · NOT a live forecast` : 'Not loaded',
       ...(this.weather ? this.weather.periods.map(period => `${period.name}: ${period.summary}`) : []),
       ...(this.weather ? [this.weather.alertsAvailable ? `Alerts at retrieval: ${this.weather.alerts.map(a => a.headline || a.event).join('; ') || 'none returned'}` : 'Alert feed unavailable'] : []),

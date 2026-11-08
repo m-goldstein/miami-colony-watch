@@ -12,8 +12,8 @@ The hero's 300,000–400,000 population range is attributed to a February 2023 M
 
 ## Setup
 
-1. Keep the original wiring: HC-SR04 TRIG D5/ECHO D6; encoder DT D2/CLK D3/SW D4; rain DO A0/AO A1; water signal **A2**; OLED SDA A4/SCL A5; existing LEDs D8–D13.
-2. Install **SSD1306Ascii by Bill Greiman**. Upload `firmware/colony_monitor/colony_monitor.ino` (firmware `colony-monitor/1.1`) using Arduino IDE. Match the firmware's food/moisture calibration constants to the physical setup. The page's **Download Arduino sketch** link serves this exact file.
+1. Keep the original wiring: HC-SR04 TRIG D5/ECHO D6; encoder DT D2/CLK D3/SW D4; rain DO A0/AO A1; water signal **A2**; DHT11 DATA/S D7 (VCC 5V, common GND); OLED SDA A4/SCL A5; existing LEDs D8–D13.
+2. Install **SSD1306Ascii by Bill Greiman**, **DHT sensor library by Adafruit**, and **Adafruit Unified Sensor**. See [DHT11 resistor and range guidance](HARDWARE.md#dht11-thermometer-on-d7). Upload `firmware/colony_monitor/colony_monitor.ino` (firmware `colony-monitor/1.2`) using Arduino IDE. Match the firmware's food/moisture calibration constants to the physical setup. The page's **Download Arduino sketch** link serves this exact file.
 3. Close Arduino Serial Monitor and stop any Node gateway using that port. Choose **Live Arduino** on the dashboard, or connect directly with the Connect Arduino button.
 4. Open the console in a browser exposing `navigator.serial`, such as desktop Chrome or Edge. The page feature-detects support and disables connection with an explanation when unavailable. Use localhost or HTTPS; the API requires a secure context and a user gesture for port selection. [Chrome's Web Serial guide](https://developer.chrome.com/docs/capabilities/serial), [Web Serial standard](https://serial.spec.whatwg.org/).
 5. Click **Connect Arduino**, select its port, and wait a few seconds for startup. Many Uno boards restart when USB serial is opened. The console configures the stream on the boot event, with a delayed fallback handshake for boards already running.
@@ -25,6 +25,7 @@ The console opens **115200 baud, 8 data bits, no parity, 1 stop bit, no flow con
 - **Connect / Disconnect:** explicit port selection and stream-lock cleanup; reconnect after a cable removal by choosing the port again.
 - **Update interval:** requests 0.5, 1, 2, 5, or 10 seconds; the UI separately shows the interval confirmed by the firmware. The default requested browser rate is one second.
 - **Read now:** requests the latest filtered measurement. It does not move the OLED page or operate a feeder.
+- **Temperature:** DHT11 ambient °C/°F; heat ≥32°C, cold ≤7°C, freezing ≤0°C, and missing-sensor guidance. These prompt caregiver checks, not diagnoses. Readings sample every two seconds; faster USB intervals repeat the last result. Verify the module’s subzero rating before relying on freezing detection.
 - **Live cards:** calibrated board food estimate; raw sonar distance and valid echo count; rain wet/dry plus raw AO/DO; water wetness index plus raw A2; encoder position, button state, and current OLED page; packet count and uptime.
 - **History:** up to 120 readings in tab memory. Unknown echoes leave gaps in the sonar graph. Missing echoes are not drawn as zero.
 - **Serial activity:** bounded recent log of frames, replies, and errors. Data is rendered as text. Malformed or overlong lines are rejected, and parsing resumes at the next newline.
@@ -62,8 +63,8 @@ Commands are bounded ASCII lines terminated by `\n`; `\r\n` is also accepted. Th
 Firmware responses are newline-delimited JSON:
 
 ```json
-{"event":"boot","firmware":"colony-monitor/1.1"}
-{"event":"hello","firmware":"colony-monitor/1.1","protocolVersion":1,"telemetryIntervalMs":10000,"screenCount":4}
+{"event":"boot","firmware":"colony-monitor/1.2"}
+{"event":"hello","firmware":"colony-monitor/1.2","protocolVersion":1,"telemetryIntervalMs":10000,"screenCount":5}
 {"event":"stream","intervalMs":1000}
 {"event":"error","message":"STREAM needs 250..60000 milliseconds"}
 ```
@@ -71,10 +72,10 @@ Firmware responses are newline-delimited JSON:
 A measurement extends the existing schema-1 frame, so the Node gateway and API remain compatible:
 
 ```json
-{"schemaVersion":1,"sequence":42,"uptimeMs":430000,"sonarDistanceCm":20.0,"sonarValidSamples":5,"rainAnalog":900,"rainDigital":1,"waterAnalog":100,"foodPercent":40,"rainWet":false,"waterIndex":0,"encoderPosition":3,"buttonPressed":false,"screen":1}
+{"schemaVersion":1,"sequence":42,"uptimeMs":430000,"sonarDistanceCm":20.0,"sonarValidSamples":5,"rainAnalog":900,"rainDigital":1,"waterAnalog":100,"temperatureC":26.0,"foodPercent":40,"rainWet":false,"waterIndex":0,"encoderPosition":3,"buttonPressed":false,"screen":1}
 ```
 
-`screen` is 0–3: food, rain, water, health. The three-detent rotary threshold remains the only way to navigate physical OLED screens. Host commands only control transport/requests and acknowledgements.
+`screen` is 0–4: food, rain, water, health, temperature. Older four-screen firmware is also accepted; its absent temperature is unknown. The three-detent rotary threshold remains the only way to navigate physical OLED screens. Host commands only control transport/requests and acknowledgements.
 
 When fewer than three of the rolling five echoes are valid, both `sonarDistanceCm` and `foodPercent` are `null`. The browser validates ADC, quality, sequence, optional derived fields, and booleans before displaying them. The server envelope omits UI-only fields and applies station calibration to raw measurements as before.
 

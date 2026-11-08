@@ -29,7 +29,7 @@ try {
       emitReading(patch = {}) {
         const frame = { schemaVersion: 1, sequence: this.port.sequence++, uptimeMs: 10000,
           sonarDistanceCm: 20, sonarValidSamples: 5, rainAnalog: 900, rainDigital: 1, waterAnalog: 100,
-          foodPercent: 40, waterIndex: 0, rainWet: false, encoderPosition: 0, buttonPressed: false, screen: 0, ...patch };
+          foodPercent: 40, waterIndex: 0, rainWet: false, temperatureC: 26, encoderPosition: 0, buttonPressed: false, screen: 0, ...patch };
         this.emitText(JSON.stringify(frame) + '\r\n');
       }
     };
@@ -40,11 +40,11 @@ try {
         this.readable = new ReadableStream({ start: controller => { this.controller = controller; } });
         this.writable = new WritableStream({ write: bytes => {
           const command = new TextDecoder().decode(bytes).trim(); board.commands.push(command);
-          if (command === 'HELLO') board.emitText('{"event":"hello","firmware":"colony-monitor/1.1","protocolVersion":1,"telemetryIntervalMs":10000}\n');
+          if (command === 'HELLO') board.emitText('{"event":"hello","firmware":"colony-monitor/1.2","protocolVersion":1,"telemetryIntervalMs":10000}\n');
           if (command.startsWith('STREAM ')) board.emitText(JSON.stringify({ event: 'stream', intervalMs: Number(command.slice(7)) }) + '\n');
           if (command === 'SAMPLE') board.emitReading();
         } });
-        queueMicrotask(() => board.emitText('{"event":"boot","firmware":"colony-monitor/1.1"}\n'));
+        queueMicrotask(() => board.emitText('{"event":"boot","firmware":"colony-monitor/1.2"}\n'));
       }
       async close() { if (this.readable.locked || this.writable.locked) throw new Error('Serial locks were not released'); this.closed = true; }
     }
@@ -133,6 +133,25 @@ try {
     await page.locator('#map-colony-list [data-colony="col-mangrove"]').click();
     await page.locator('#map-expand').click();
   }
+  await page.setViewportSize({ width: 1440, height: 1050 });
+  for (const [scenario, label] of [['hot', 'Heat risk'], ['cold', 'Cold risk'], ['freezing', 'Freezing risk']]) {
+    await page.locator(`[data-scenario="${scenario}"]`).click();
+    await page.locator('#temperature-status').filter({ hasText: label }).waitFor();
+    assert.equal(await page.locator('#temperature-status').innerText(), label);
+    assert.equal(await page.locator('#temperature-alert').isVisible(), true);
+    assert.equal(await page.locator('#care').getAttribute('data-kind'), scenario);
+  }
+  await page.locator('[data-scenario="hot"]').click();
+  await page.locator('#temperature-card').screenshot({ path: 'test-results/temperature-heat-desktop.png' });
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.locator('body').evaluate(body => body.scrollWidth <= innerWidth), true);
+    assert.equal(await page.locator('#temperature-card > p').evaluateAll(paragraphs => {
+      const boxes = paragraphs.filter(p => !p.hidden).map(p => p.getBoundingClientRect());
+      return boxes.every((box, i) => i === 0 || box.top >= boxes[i - 1].bottom - 1);
+    }), true, 'Temperature instructions must not overlap at mobile widths');
+  }
+  await page.locator('#temperature-card').screenshot({ path: 'test-results/temperature-heat-mobile.png' });
   await page.setViewportSize({ width: 1440, height: 1050 });
   await page.locator('[data-scenario="food"]').click();
   await page.locator('#food-value').filter({ hasText: '14%' }).waitFor();
@@ -226,6 +245,25 @@ try {
   assert.ok((await page.evaluate(() => window.__board.commands)).includes('A'));
   assert.ok((await page.evaluate(() => window.__board.commands)).includes('B'));
   assert.ok(!(await page.locator('#serial-log').innerText()).includes(station.deviceKey));
+  for (const [temperatureC, status, taskType] of [[32, 'Heat risk', 'temperature-hot'], [7, 'Cold risk', 'temperature-cold'], [0, 'Freezing risk', 'temperature-freezing']]) {
+    await page.evaluate(value => window.__board.emitReading({ temperatureC: value, screen: 4 }), temperatureC);
+    await page.locator('#temperature-status').filter({ hasText: status }).waitFor();
+    assert.match(await page.locator('#screen-value').innerText(), /5\/5.*Temperature/);
+    await page.locator('#save-reading').click();
+    await page.getByText('Saved to the colony workspace. Tasks and dashboard will update.', { exact: true }).waitFor();
+    assert.equal(app.store.latest(station.device.id).temperatureC, temperatureC);
+    assert.ok(app.store.list('tasks').some(task => task.deviceId === station.device.id && task.type === taskType));
+    await page.locator('#map-temperature').filter({ hasText: `${temperatureC.toFixed(1)}°C` }).waitFor();
+  }
+  await page.locator('[data-map-filter="temperature"]').click();
+  assert.equal(await page.locator('#map-colony-list button').count(), 1);
+  await page.locator('[data-map-filter="all"]').click();
+  await page.evaluate(() => window.__board.emitReading({ temperatureC: null }));
+  await page.locator('#temperature-value').filter({ hasText: 'Unknown' }).waitFor();
+  assert.equal(await page.locator('#temperature-alert').isVisible(), false);
+  assert.equal(await page.locator('#care').getAttribute('data-kind'), 'temperature-unknown');
+  await page.evaluate(() => window.__board.emitReading());
+  await page.locator('#temperature-value').filter({ hasText: '26.0°C' }).waitFor();
   await page.locator('#log-visit').click();
   await page.locator('#visit-author').fill('Browser caregiver');
   await page.locator('#visit-cats').fill('2');
@@ -247,6 +285,9 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'test-results/usb-sensors-mobile.png', fullPage: true });
   assert.equal(await page.locator('body').evaluate(body => body.scrollWidth <= window.innerWidth), true);
+  await page.waitForFunction(() => document.getElementById('temperature-status').textContent === 'Reading unavailable', { timeout: 8000 });
+  assert.equal(await page.locator('#temperature-value').innerText(), 'Unknown');
+  assert.equal(await page.locator('#temperature-alert').isVisible(), false);
   await page.locator('#disconnect').click();
   await page.getByText('Disconnected', { exact: true }).waitFor();
   assert.equal(await page.locator('#device-key').inputValue(), '');
@@ -267,8 +308,8 @@ try {
   assert.equal(await unsupported.locator('#connect').isDisabled(), true);
   assert.match(await unsupported.locator('#support-notice').innerText(), /does not expose Web Serial/);
   const firmware = await fetch(base + '/firmware/colony_monitor.ino');
-  assert.equal(firmware.status, 200); assert.match(await firmware.text(), /colony-monitor\/1.1/);
-  console.log('PASS: browser USB chooser cancellation/busy recovery, live fragmented telemetry, command round trips, malformed-frame recovery, authenticated manual saves and replay, unknown echo, download, mobile layout, disconnect/reconnect/cable removal, unsupported-browser guidance. Serial hardware is mocked.');
+  assert.equal(firmware.status, 200); assert.match(await firmware.text(), /colony-monitor\/1.2/);
+  console.log('PASS: browser USB chooser cancellation/busy recovery, live fragmented telemetry, DHT11 heat/cold/freezing display and saved tasks, thermal map filters, missing/stale temperature, command round trips, malformed-frame recovery, authenticated manual saves and replay, unknown echo, download, mobile layout, disconnect/reconnect/cable removal, unsupported-browser guidance. Serial hardware is mocked.');
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve)); app.store.close();

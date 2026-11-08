@@ -350,3 +350,35 @@ main,.site-header { max-width:1320px; }
   .plan-card-heading { gap:10px; }
   .plan-card-heading .icon-badge { width:33px; height:33px; }
 }
+
+/* The thermometer shares the measurement panel and remains visible beside other alerts. */
+.temperature-card { grid-column:1/-1; display:grid; grid-template-columns:1fr 1.2fr; gap:8px 20px; padding:20px 21px 0; background:linear-gradient(120deg,#fffdf8,#edf4ee); }
+.temperature-card .gauge-title { grid-column:1; grid-row:1; flex-direction:row; align-items:center; }
+.temperature-card .gauge-reading { grid-column:2; grid-row:1; margin:0; align-items:flex-end; text-align:right; }
+.temperature-card .gauge-reading strong { font-size:clamp(20px,2vw,27px); letter-spacing:-.7px; }
+.temperature-card>p { grid-column:1/-1; grid-row:auto; min-height:0; margin:0; font-size:12px; }
+.temperature-card #temperature-alert { border-left:3px solid currentColor; padding-left:12px; margin:5px 0; color:#8c432d; }
+.temperature-card .gauge-footer { grid-column:1/-1; grid-row:auto; flex-wrap:wrap; font-size:10px; }
+.temperature-card .temperature-range-note { font-size:10px; }
+.temperature-card[data-status=hot] { background:#fff0e4; border-color:#dca182; }
+.temperature-card[data-status=cold],.temperature-card[data-status=freezing] { background:#edf5fb; border-color:#91b7d3; }
+.temperature-card[data-status=unknown] { background:#f1f0eb; }
+.temperature-card[data-status=hot] .status-tag { color:#963e29; }
+.temperature-card[data-status=cold] .status-tag,.temperature-card[data-status=freezing] .status-tag { color:#285e85; }
+.temperature-card[data-status=unknown] .status-tag { color:#6d736a; }
+.temperature-card[data-status=hot] .status-tag:before { background:#bc5936; }
+.temperature-card[data-status=cold] .status-tag:before,.temperature-card[data-status=freezing] .status-tag:before { background:#3e7ea8; }
+.temperature-card[data-status=unknown] .status-tag:before { background:#92958b; }
+.temperature-scale { grid-column:1/-1; height:7px; margin:10px 4px 5px; border-radius:10px; background:linear-gradient(90deg,#4c8ab2,#a9d3dc 31%,#c7ddba 32%,#c7ddba 76%,#e4a66f 77%,#bb5739); position:relative; }
+#temperature-marker { position:absolute; top:-4px; width:3px; height:15px; border-radius:2px; background:var(--ink); }
+.care-callout[data-kind=hot] { background:#fff0e4; border-color:#dca182; }
+.care-callout[data-kind=cold],.care-callout[data-kind=freezing] { background:#edf5fb; border-color:#91b7d3; }
+.map-temperature { display:flex; align-items:center; gap:9px; flex-wrap:wrap; font-size:11px; color:#526e65; padding:12px 0; }
+.map-temperature strong { margin-left:auto; }
+.map-temperature .icon { width:18px; height:18px; }
+@media(max-width:700px) {
+  .temperature-card { grid-template-columns:1fr; gap:10px; }
+  .temperature-card .gauge-title,.temperature-card .gauge-reading { grid-column:1; grid-row:auto; }
+  .temperature-card .gauge-reading { align-items:flex-start; text-align:left; }
+  .temperature-card .gauge-reading strong { font-size:24px; }
+}

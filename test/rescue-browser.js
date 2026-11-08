@@ -102,6 +102,23 @@ try {
   assert.match(await page.locator('#rescue-needs-list').innerText(), /Caregiver checked Pippa/);
   await page.locator('#followup-filter').selectOption('active');
 
+  for (const [scenario, value, badge] of [['hot', '36.0°C / 96.8°F', 'Heat risk'], ['cold', '5.0°C / 41.0°F', 'Cold risk'], ['freezing', '-2.0°C / 28.4°F', 'Freezing risk']]) {
+    await page.locator(`[data-rescue-station="${scenario}"]`).click();
+    await page.locator('#rescue-temperature').filter({ hasText: value }).waitFor();
+    await page.locator('#temperature-value').filter({ hasText: value }).waitFor();
+    assert.equal(await page.locator('#rescue-temperature-status').innerText(), badge);
+    assert.equal(await page.locator('#temperature-status').innerText(), badge);
+    assert.ok(await page.locator('#rescue-needs-list .rescue-task').filter({ hasText: new RegExp(`${scenario === 'hot' ? 'Heat' : scenario === 'cold' ? 'Cold' : 'Freezing'} (risk|conditions)`) }).count());
+  }
+  await page.reload({ waitUntil: 'networkidle' });
+  assert.equal(await page.locator('#rescue-temperature').innerText(), '-2.0°C / 28.4°F');
+  assert.equal(await page.locator('#temperature-value').innerText(), '-2.0°C / 28.4°F');
+  assert.equal(await page.locator('#rescue-temperature-status').innerText(), 'Freezing risk');
+  assert.match(await page.locator('.rescue-humidity-note').innerText(), /not reported/);
+  const thermalDownloadPromise = page.waitForEvent('download'); await page.locator('#download-rescue-report').click();
+  const thermalDownload = await thermalDownloadPromise, thermalCsv = readFileSync(await thermalDownload.path(), 'utf8');
+  assert.match(thermalCsv, /AMBIENT TEMPERATURE C/); assert.match(thermalCsv, /Arduino exercise: freezing/);
+
   mkdirSync('test-results', { recursive: true });
   await page.locator('[data-update="morning-02"]').click();
   await page.evaluate(() => { document.activeElement.blur(); window.scrollTo({ top: 0, behavior: 'instant' }); });
@@ -132,6 +149,10 @@ try {
   assert.equal(await page.locator('#rescue-pending-count').innerText(), '0');
   assert.equal(await page.locator('#rescue-food').innerText(), '72%');
   assert.equal(context.store.list('cats').length, 80);
+  const legacy = context.store.get('care_demo', 'south-point-exercise-v1'); legacy.version = 1; delete legacy.station.temperatureC; context.store.put('care_demo', legacy);
+  await page.reload({ waitUntil: 'networkidle' });
+  assert.equal(await page.locator('#rescue-temperature').innerText(), 'Unknown');
+  assert.equal(await page.locator('#temperature-value').innerText(), 'Unknown');
   assert.deepEqual(errors, []);
   console.log('PASS: sample batch → human identity/alias review → distinct new identity → assigned care → visit evidence → dated procedure/report/CSV → reload persistence; station/task independence; mobile field form; five responsive widths; pilot assumptions; reset preserves workspace records.');
 } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); context.store.close(); }

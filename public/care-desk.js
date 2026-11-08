@@ -1,3 +1,5 @@
+import { temperatureLabel, temperatureState, TEMPERATURE_ALERTS } from './temperature.js';
+
 const el = id => document.getElementById(id);
 const put = (id, value) => { el(id).textContent = value; };
 const node = (tag, className, content) => {
@@ -63,7 +65,7 @@ export class CareDesk {
     if (!state.updates.some(update => update.id === this.selected)) this.selected = state.updates.find(update => update.status === 'pending')?.id || state.updates[0]?.id;
     this.render(); if (first) this.populatePilot(); this.onChange(state);
     const signature = JSON.stringify(state.station);
-    if (this.stationSignature !== signature) { this.stationSignature = signature; this.onStation(state.station.scenario); }
+    if (this.stationSignature !== signature) { this.stationSignature = signature; this.onStation(state.station.scenario, state.station); }
     void this.loadReport();
   }
   async importSamples(scroll = false) {
@@ -82,6 +84,10 @@ export class CareDesk {
     put('rescue-status', s.importedAt ? `Saved exercise · ${s.updates.length} original updates · ${pending} awaiting review. Reloading keeps your work.` : 'Start with the sample morning or add a fictional field update. The exercise saves separately from workspace and physical-device records.');
     put('rescue-food', s.station.online ? `${s.station.foodPercent}%` : 'Unknown'); put('rescue-rain', s.station.online ? s.station.wet ? 'Wet' : 'Dry' : 'Unknown');
     put('rescue-water', s.station.online ? `${s.station.waterIndex} / 100` : 'Unknown'); put('rescue-sensor-source', `Fictional sensor scenario · received ${dateLabel(s.station.receivedAt)}`);
+    const temperatureC = s.station.online ? s.station.temperatureC : null, temperature = temperatureState(temperatureC);
+    put('rescue-temperature', temperatureLabel(temperatureC));
+    put('rescue-temperature-status', TEMPERATURE_ALERTS[temperature]?.badge || 'No temperature alert');
+    el('rescue-station-temperature').dataset.status = temperature;
     this.renderInbox(); this.renderReview(); this.renderNeeds(); this.renderCats();
   }
   renderInbox() {
@@ -152,6 +158,7 @@ export class CareDesk {
       const card = node('article', `rescue-task ${task.status}`), header = node('div', 'rescue-task-header');
       header.append(node('span', `care-severity ${task.severity}`, task.status === 'completed' ? 'Completed ✓' : task.severity === 'urgent' ? 'Needs attention' : 'Care follow-up'), node('small', '', task.origin));
       card.append(header, node('h3', '', task.title), node('p', '', task.status === 'completed' ? task.resolution : `${task.assignee || 'No caregiver assigned'}${task.dueAt ? ` · check-in ${dateLabel(task.dueAt)}` : ' · agree on a check-in'}`));
+      if (task.detail && task.status !== 'completed') card.append(node('p', 'rescue-task-detail', task.detail));
       const actions = node('div', 'rescue-task-actions'); actions.append(actionButton('See the source ↗', 'source', task.sourceId));
       if (task.status !== 'completed') actions.append(actionButton(task.assignee ? 'Update follow-up' : 'Assign a caregiver', 'followup', task.id, 'button outline small'));
       else actions.append(node('small', '', `${task.assignee} · ${dateLabel(task.completedAt)}`));
@@ -182,7 +189,9 @@ export class CareDesk {
     const content = el('sensor-evidence-content'); content.replaceChildren();
     if (evidence) {
       const reading = evidence.reading;
-      content.append(node('p', '', `${evidence.title} · ${dateLabel(evidence.occurredAt)}`), node('p', '', `Source ${reading.id}. Food ${reading.online ? reading.foodPercent + '%' : 'unknown'}, rain ${reading.online ? reading.wet ? 'wet' : 'dry' : 'unknown'}, base wetness ${reading.online ? reading.waterIndex : 'unknown'}.`), node('p', 'small-note', 'Fictional Arduino reading. It cannot diagnose a cat or certify safe access.'));
+      content.append(node('p', '', `${evidence.title} · ${dateLabel(evidence.occurredAt)}`), node('p', '', `Source ${reading.id}. Food ${reading.online ? reading.foodPercent + '%' : 'unknown'}, rain ${reading.online ? reading.wet ? 'wet' : 'dry' : 'unknown'}, base wetness ${reading.online ? reading.waterIndex : 'unknown'}.`),
+        node('p', '', `Ambient temperature: ${temperatureLabel(reading.online ? reading.temperatureC : null)}. Humidity is not reported by the current firmware.`),
+        node('p', 'small-note', 'Fictional Arduino reading. It cannot diagnose a cat or certify safe access.'));
     } else content.append(node('p', '', 'The evidence record is retained in the report.'));
     el('sensor-evidence-dialog').showModal();
   }
@@ -230,7 +239,7 @@ export class CareDesk {
       el('download-rescue-report').href = `/api/care-demo/report.csv?${params}`; el('download-rescue-report').removeAttribute('aria-disabled');
       const list = el('report-evidence-list'); list.replaceChildren();
       for (const record of report.evidence.toReversed().slice(0, 100)) {
-        const item = node('li'); item.append(node('time', '', dateLabel(record.occurredAt)), node('b', '', record.title || record.kind), node('small', '', `${record.id}${record.reference ? ' · ' + record.reference : ''}${record.note ? ' · ' + record.note : ''}`));
+        const item = node('li'); item.append(node('time', '', dateLabel(record.occurredAt)), node('b', '', record.title || record.kind), node('small', '', `${record.id}${record.reference ? ' · ' + record.reference : ''}${record.note ? ' · ' + record.note : ''}${record.reading ? ` · ambient ${temperatureLabel(record.reading.online ? record.reading.temperatureC : null)}` : ''}`));
         if (record.sourceId) item.append(actionButton('Check source ↗', 'source', record.sourceId)); list.append(item);
       }
       if (!report.evidence.length) list.append(node('li', 'small-note', 'No dated activity in this period. Baseline census records are not new completions.'));

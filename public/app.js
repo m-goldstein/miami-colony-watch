@@ -1,3 +1,5 @@
+import { temperatureLabel, temperatureState, TEMPERATURE_ALERTS } from './temperature.js';
+
 (function () {
   'use strict';
   angular.module('colonyWatch', [])
@@ -57,6 +59,9 @@
       vm.foodLabel = function (device) { return !vm.error && device && device.measurements.foodPercent !== null ? device.measurements.foodPercent + '%' : 'Unknown'; };
       vm.foodLow = function (d) { return !!(!vm.error && d && d.measurements.fresh && d.measurements.foodPercent !== null && d.measurements.foodPercent <= d.calibration.foodLowPercent); };
       vm.isWet = function (d) { return !!(d && d.measurements.fresh && (d.measurements.wet || d.measurements.waterPercent >= d.calibration.waterAlertPercent)); };
+      vm.temperatureLabel = function (d) { return temperatureLabel(!vm.error && d && d.measurements.fresh ? d.measurements.temperatureC : null); };
+      vm.temperatureAlert = function (d) { return TEMPERATURE_ALERTS[temperatureState(!vm.error && d && d.measurements.fresh ? d.measurements.temperatureC : null)]?.badge || 'No temperature alert'; };
+      vm.temperatureRisk = function (d) { return !!(!vm.error && d && d.measurements.fresh && ['hot', 'cold', 'freezing'].includes(d.measurements.temperatureStatus)); };
       vm.weatherLabel = function (d) {
         if (vm.error || !d || !d.measurements.fresh) return 'No fresh reading';
         if (d.measurements.waterPercent >= d.calibration.waterAlertPercent) return 'Standing water';
