@@ -25,6 +25,17 @@ try {
   mkdirSync('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/dashboard-desktop.png', fullPage: true });
 
+  for (const [scenario, label] of [['hot', 'Heat risk'], ['cold', 'Cold risk'], ['freezing', 'Freezing risk']]) {
+    await page.getByRole('button', { name: /Try a sensor scenario/ }).click();
+    await page.locator('.modal select').nth(1).selectOption(scenario);
+    await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
+    await page.locator('.modal').waitFor({ state: 'hidden' });
+    await page.locator('.pulse-panel tbody tr').filter({ hasText: 'South Point Park' }).getByText(new RegExp(label)).waitFor();
+  }
+  await page.getByRole('button', { name: /Try a sensor scenario/ }).click();
+  await page.locator('.modal select').nth(1).selectOption('recover');
+  await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
+  await page.locator('.modal').waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: /Try a sensor scenario/ }).click();
   await page.locator('.modal select').nth(1).selectOption('no-echo');
   await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
@@ -96,7 +107,7 @@ try {
   await page.screenshot({ path: 'test-results/dashboard-mobile.png', fullPage: true });
   assert.equal(await page.locator('body').evaluate(el => el.scrollWidth <= window.innerWidth), true);
   assert.deepEqual(errors, []);
-  console.log('PASS: desktop/mobile rendering, no console errors, scenario → API → unknown reading, visit persistence, identity review task, task assignment, station provisioning → authenticated telemetry → visible 80% food reserve, reload persistence, research navigation.');
+  console.log('PASS: desktop/mobile rendering, no console errors, heat/cold/freezing scenarios → API → displayed alerts, unknown reading, visit persistence, identity review task, task assignment, station provisioning → authenticated telemetry → visible 80% food reserve, reload persistence, research navigation.');
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve)); context.store.close();

@@ -7,7 +7,7 @@ test('demo scenarios are valid, explicitly separate preview readings with predic
     const reading = demoReading(key, 1);
     assert.equal(parseSerialLine(JSON.stringify(reading)).data.foodPercent, scenario.food);
     const care = careState(reading, scenario.online);
-    assert.equal(care.kind, { calm: 'calm', food: 'food', refill: 'calm', rain: 'rain', water: 'water', offline: 'offline' }[key]);
+    assert.equal(care.kind, { calm: 'calm', food: 'food', refill: 'calm', rain: 'rain', water: 'water', offline: 'offline', hot: 'hot', cold: 'cold', freezing: 'freezing' }[key]);
   }
   assert.throws(() => demoReading('unrecognized'));
 });

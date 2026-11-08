@@ -2,6 +2,9 @@
 #include <iostream>
 #include "../../firmware/colony_monitor/colony_monitor.ino"
 void advance(unsigned long elapsed) { simulatedNow += elapsed; loop(); }
+void temperatureSample(float value) {
+  simulatedTemperatureC = value; advance(TEMPERATURE_INTERVAL_MS);
+}
 void state(uint8_t s) { pinValues[ENCODER_CLK] = (s >> 1) & 1; pinValues[ENCODER_DT] = s & 1; encoderChanged(); }
 void turn(int clicks) {
   for (int i = 0; i < (clicks < 0 ? -clicks : clicks); ++i) {
@@ -24,6 +27,7 @@ void checkDisplay() {
 int main() {
   analogValues[A2] = 100; analogValues[A1] = 900;
   setup();
+  assert(!haveTemperature && thermometer.started && temperatureReads == 0);
   assert(pinModes[A2] == INPUT && pinModes[A1] == INPUT && pinModes[A0] == INPUT_PULLUP);
   assert(screen == 0 && !foodKnown());
   simulatedEchoUs = 1160;
@@ -33,12 +37,17 @@ int main() {
   simulatedEchoUs = 23200; advance(100);
   simulatedEchoUs = 1160; advance(100); assert(distanceTenthsCm == 200);
   assert(haveAnalog && waterRaw == 100 && rainRaw == 900 && !rainWet());
+  advance(1499); assert(!haveTemperature && temperatureReads == 0);
+  advance(1); assert(haveTemperature && temperatureTenthsC == 260 && temperatureReads == 1);
+  advance(1999); assert(temperatureReads == 1); // USB refreshes cannot over-poll the DHT11.
+  advance(1); assert(temperatureReads == 2);
   assert(normalized(100, 100, 800) == 0 && normalized(800, 100, 800) == 100);
   assert(normalized(900, 900, 250) == 0 && normalized(250, 900, 250) == 100);
   turn(2); assert(screen == 0 && screenTravel == 2);
   turn(1); assert(screen == 1 && screenTravel == 0);
   checkDisplay();
   turn(-3); assert(screen == 0);
+  turn(-3); assert(screen == 4); checkDisplay();
   turn(-3); assert(screen == 3); checkDisplay();
   turn(-3); assert(screen == 2); checkDisplay();
   pinValues[ENCODER_SW] = LOW; advance(1000); assert(screen == 2);
@@ -48,7 +57,8 @@ int main() {
   Serial.input = "B\n"; loop(); assert(browserRecent(simulatedNow));
   assert(!uplinkRecent(simulatedNow));  // Browser reception is not a saved upload.
   Serial.output.clear(); Serial.input = "HELLO\r\n"; loop();
-  assert(Serial.output.find("colony-monitor/1.1") != std::string::npos);
+  assert(Serial.output.find("colony-monitor/1.2") != std::string::npos);
+  assert(Serial.output.find("\"screenCount\":5") != std::string::npos);
   Serial.input = "STREAM 500\n"; loop(); assert(telemetryIntervalMs == 500);
   Serial.input = "STREAM 1\nSTREAM 999999999999999\nSTREAM -500\n"; loop();
   assert(telemetryIntervalMs == 500);
@@ -60,7 +70,18 @@ int main() {
   Serial.input = "STREAM 10000\n"; loop(); assert(telemetryIntervalMs == TELEMETRY_INTERVAL_MS);
   const uint8_t priorScreen = screen;
   Serial.input = "SCREEN 0\n"; loop(); assert(screen == priorScreen); // Rotation owns OLED navigation.
-  // Emit two actual firmware JSON lines for the Node ingestion integration test.
+  temperatureSample(32.0f); assert(haveTemperature && temperatureTenthsC == 320);
+  assert(pinValues[TRAFFIC_R] == (TRAFFIC_ACTIVE_LOW ? LOW : HIGH));
+  temperatureSample(7.0f); assert(temperatureTenthsC == 70);
+  assert(pinValues[TRAFFIC_Y] == (TRAFFIC_ACTIVE_LOW ? LOW : HIGH));
+  temperatureSample(0.0f); assert(haveTemperature && temperatureTenthsC == 0);
+  assert(pinValues[TRAFFIC_R] == (TRAFFIC_ACTIVE_LOW ? LOW : HIGH));
+  for (float invalid : {NAN, 85.0f, 61.0f, -21.0f}) {
+    temperatureSample(invalid); assert(!haveTemperature);
+    assert(pinValues[TRAFFIC_Y] == (TRAFFIC_ACTIVE_LOW ? LOW : HIGH));
+  }
+  temperatureSample(26.0f); assert(haveTemperature); // Reconnect recovers automatically.
+  // Emit actual firmware JSON lines for the Node ingestion integration test.
   Serial.output.clear();
   simulatedEchoUs = 1160;
   for (int i = 0; i < 5; ++i) advance(100);
@@ -69,10 +90,16 @@ int main() {
   std::cout << Serial.output;
   Serial.output.clear();
   simulatedEchoUs = 0;
+  temperatureSample(NAN);
   for (int i = 0; i < 5; ++i) advance(100);
   assert(!foodKnown() && validSamples == 0);
   lastTelemetry = simulatedNow - TELEMETRY_INTERVAL_MS;
   loop();
   std::cout << Serial.output;
   assert(pinValues[TRAFFIC_Y] == (TRAFFIC_ACTIVE_LOW ? LOW : HIGH));
+  for (float value : {36.0f, 5.0f, -2.0f}) {
+    temperatureSample(value);
+    Serial.output.clear(); sampleRequested = true; loop();
+    std::cout << Serial.output;
+  }
 }

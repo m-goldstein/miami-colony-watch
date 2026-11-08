@@ -36,7 +36,7 @@ export function seedDemo(store) {
         const level = Math.min(100, food + (15 - sample) * 2.1);
         store.addReading({ schemaVersion: 1, deviceId, bootId: 'seed-demo-v1', sequence: sample, uptimeMs: sample * 30000,
           sampledAt, sonarDistanceCm: +(30 - level * 0.25).toFixed(1), sonarValidSamples: 5,
-          rainAnalog: wet ? 230 : 920, rainDigital: wet ? 0 : 1, waterAnalog: water, source: 'demo' }, sampledAt);
+          rainAnalog: wet ? 230 : 920, rainDigital: wet ? 0 : 1, waterAnalog: water, temperatureC: 26 + index * 0.5, source: 'demo' }, sampledAt);
       }
       for (let cat = 0; cat < cats; cat++) {
         store.put('cats', { id: `${slug}-cat-${String(cat + 1).padStart(2, '0')}`, colonyId,

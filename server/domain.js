@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { temperatureState, TEMPERATURE_ALERTS } from '../public/temperature.js';
 export const id = prefix => `${prefix}-${randomUUID().slice(0, 8)}`;
 export const hashKey = key => createHash('sha256').update(key).digest('hex');
 export const DEFAULT_CALIBRATION = {
@@ -42,14 +43,18 @@ export function validateReading(body, now = Date.now()) {
   result.rainAnalog = number(body.rainAnalog, 'rainAnalog', 0, 1023, true);
   result.rainDigital = number(body.rainDigital, 'rainDigital', 0, 1, true);
   result.waterAnalog = number(body.waterAnalog, 'waterAnalog', 0, 1023, true);
+  // Older schema-v1 firmware has no thermometer; missing stays unknown.
+  result.temperatureC = body.temperatureC == null ? null : number(body.temperatureC, 'temperatureC', -20, 60);
   return result;
 }
 const percent = (value, dry, wet) => Math.round(Math.max(0, Math.min(100, 100 * (value - dry) / (wet - dry))));
 export function measurements(reading, config, now = Date.now()) {
-  if (!reading) return { fresh: false, foodPercent: null, waterPercent: null, rainPercent: null, wet: null, sampledAt: null };
+  if (!reading) return { fresh: false, foodPercent: null, waterPercent: null, rainPercent: null, wet: null, temperatureC: null, temperatureStatus: 'unknown', sampledAt: null };
   const fresh = now - Date.parse(reading.sampledAt) <= 5 * 60000;
+  const temperatureC = fresh ? reading.temperatureC ?? null : null;
   return {
     fresh, sampledAt: reading.sampledAt, source: reading.source,
+    temperatureC, temperatureStatus: temperatureState(temperatureC),
     foodPercent: fresh && reading.sonarDistanceCm !== null ? percent(reading.sonarDistanceCm, config.foodEmptyCm, config.foodFullCm) : null,
     waterPercent: fresh ? percent(reading.waterAnalog, config.waterDryRaw, config.waterWetRaw) : null,
     rainPercent: fresh ? percent(reading.rainAnalog, config.rainDryRaw, config.rainWetRaw) : null,
@@ -63,7 +68,7 @@ export function deviceView(device, reading, now = Date.now()) {
   const { keyHash, ...safe } = device;
   const online = device.lifecycle === 'deployed' && now - Date.parse(device.lastSeenAt || 0) < 120000;
   const m = measurements(reading, device.calibration, now);
-  if (!online) Object.assign(m, { fresh: false, foodPercent: null, waterPercent: null, rainPercent: null, wet: null });
+  if (!online) Object.assign(m, { fresh: false, foodPercent: null, waterPercent: null, rainPercent: null, wet: null, temperatureC: null, temperatureStatus: 'unknown' });
   return { ...safe, online, measurements: m };
 }
 export function ensureTask(store, device, type, title, severity, now = new Date().toISOString()) {
@@ -87,4 +92,7 @@ export function evaluateDevice(store, device, now = Date.now()) {
   else if (m.foodPercent <= device.calibration.foodLowPercent) ensureTask(store, device, 'food', 'Refill food and inspect the hopper', 'urgent');
   if (m.waterPercent >= device.calibration.waterAlertPercent) ensureTask(store, device, 'water', 'Inspect standing water at the station', 'urgent');
   if (m.wet) ensureTask(store, device, 'rain', 'Check shelter and keep food dry', 'warning');
+  const temperatureAlert = TEMPERATURE_ALERTS[m.temperatureStatus];
+  if (temperatureAlert) ensureTask(store, device, `temperature-${m.temperatureStatus}`, temperatureAlert.title + ' ' + temperatureAlert.detail,
+    ['hot', 'freezing'].includes(m.temperatureStatus) ? 'urgent' : 'warning');
 }

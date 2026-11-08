@@ -1,4 +1,5 @@
 // Workspace records are shown separately from this tab's USB and scenario readings.
+import { temperatureState, temperatureLabel, TEMPERATURE_ALERTS } from './temperature.js';
 const el = id => document.getElementById(id);
 const text = (id, value) => { el(id).textContent = value; };
 const icon = (name, className = 'icon') => {
@@ -14,10 +15,12 @@ export function mapCondition(colony, now = Date.now()) {
   const food = fresh ? m.foodPercent : null, water = fresh ? m.waterPercent : null, rain = fresh ? m.wet : null;
   const low = food != null && food <= d.calibration.foodLowPercent;
   const standing = water != null && water >= d.calibration.waterAlertPercent;
-  const check = low || standing || rain === true || food == null;
+  const temperatureC = fresh ? m.temperatureC ?? null : null, temperature = temperatureState(temperatureC);
+  const temperatureRisk = ['hot', 'cold', 'freezing'].includes(temperature);
+  const check = low || standing || rain === true || food == null || temperature !== 'normal';
   const state = !fresh ? 'offline' : check ? 'check' : 'calm';
-  const note = !fresh ? 'No recent station signal. Arrange a connection or station check.' : standing ? 'The wetness probe needs a site check when access is safe. It cannot certify flood conditions.' : low ? 'Food reserve is running low. Plan a refill and check the hopper in person.' : rain ? 'The rain plate is wet. Check that food and shelter stay protected.' : food == null ? 'Food estimate unknown. Check the sensor and hopper before assuming it is empty.' : 'No sensor alert in this saved record. Keep regular care visits on the plan.';
-  return { fresh: !!fresh, food, water, rain, low, standing, state, note };
+  const note = !fresh ? 'No recent station signal. Arrange a connection or station check.' : temperatureRisk ? TEMPERATURE_ALERTS[temperature].detail : standing ? 'The wetness probe needs a site check when access is safe. It cannot certify flood conditions.' : low ? 'Food reserve is running low. Plan a refill and check the hopper in person.' : rain ? 'The rain plate is wet. Check that food and shelter stay protected.' : food == null ? 'Food estimate unknown. Check the sensor and hopper before assuming it is empty.' : temperature === 'unknown' ? TEMPERATURE_ALERTS.unknown.detail : 'No sensor alert in this saved record. Keep regular care visits on the plan.';
+  return { fresh: !!fresh, food, water, rain, low, standing, temperatureC, temperatureRisk, state, note };
 }
 export class ColonyMap {
   constructor() {
@@ -57,7 +60,7 @@ export class ColonyMap {
     const conditions = new Map(records.map(c => [c.id, mapCondition(c)]));
     const shown = records.filter(c => { const m = conditions.get(c.id); return this.filter === 'all' ||
       (this.filter === 'food' && m.low) || (this.filter === 'rain' && m.rain === true) ||
-      (this.filter === 'water' && m.standing) || (this.filter === 'offline' && !m.fresh); });
+      (this.filter === 'water' && m.standing) || (this.filter === 'temperature' && m.temperatureRisk) || (this.filter === 'offline' && !m.fresh); });
     if (!shown.some(c => c.id === this.selected.get(mode))) this.selected.set(mode, shown[0]?.id || null);
     const selected = shown.find(c => c.id === this.selected.get(mode)), condition = selected ? conditions.get(selected.id) : null;
     text('map-scope', mode === 'demo' ? 'Fictional demo colonies · saved workspace signals · schematic locations.' : 'Physical colony records · saved workspace signals · positions are schematic, not GPS.');
@@ -106,6 +109,7 @@ export class ColonyMap {
     text('map-food', condition?.food != null ? `${condition.food}%` : 'Unknown');
     text('map-rain', condition?.rain == null ? 'Unknown' : condition.rain ? 'Wet' : 'Dry');
     text('map-water', condition?.water != null ? `${condition.water} / 100` : 'Unknown');
+    text('map-temperature', temperatureLabel(condition?.temperatureC));
     for (const [name, value] of [['food', condition?.food], ['rain', condition?.rain], ['water', condition?.water]]) {
       el(`map-${name}`).classList.toggle('is-unknown', value == null);
     }

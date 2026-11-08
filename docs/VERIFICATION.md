@@ -4,16 +4,16 @@ Checked locally on November 7, 2026. These results cover software, a virtual ser
 
 ## Verified story
 
-A station measures food headspace and wetness. Its firmware emits a bounded JSON record; the USB gateway adds identity/time and queues it; an authenticated API validates and stores it; the task evaluator creates inspection work; the dashboard displays the data alongside caregiver visits and cat/TNVR records.
+A station measures food headspace, wetness, and DHT11 ambient temperature on D7. Its firmware emits a bounded JSON record; the USB gateway adds identity/time and queues it; an authenticated API validates and stores it; the task evaluator creates inspection work; the dashboard displays the data alongside caregiver visits and cat/TNVR records.
 
 | Boundary | Evidence |
 | --- | --- |
-| Firmware processing and OLED | `npm run test:firmware` runs the actual sketch against GPIO/display mocks. Confirms median filtering, no-echo handling, three-detent page changes, wrap, eight text rows, browser/saved acknowledgements, HELLO/STREAM/SAMPLE replies, invalid-command recovery, and compatibility with the browser frame parser. |
-| Firmware JSON → API | The same test takes the sketch's emitted JSON through `frameToPacket` and the real HTTP delivery function. A provisioned station stores 20cm as 40% fill, then stores missing echo as an unknown estimate. |
+| Firmware processing and OLED | `npm run test:firmware` runs the actual sketch against GPIO/display mocks. Confirms median filtering, no-echo handling, three-detent page changes, wrap, eight text rows on all five pages, DHT11 startup/two-second sampling, invalid-read clearing and recovery, heat/cold/freezing LED priorities, browser/saved acknowledgements, HELLO/STREAM/SAMPLE replies, invalid-command recovery, and compatibility with the browser frame parser. |
+| Firmware JSON → API | The same test takes the sketch's emitted JSON through `frameToPacket` and the real HTTP delivery function. A provisioned station stores 20cm as 40% fill, then stores missing echo as an unknown estimate. DHT11 temperatures of 26°C, null, 36°C, 5°C, and −2°C pass through the same path and create distinct heat/cold/freezing tasks. |
 | USB serial driver → retry queue → API | `test/serial.test.js` creates a Linux virtual serial port using Python PTY, runs the actual Node gateway/SerialPort driver, and observes accepted readings and serial acknowledgements. During a simulated HTTP 503 outage the reading remains in the outbox; recovery stores exactly two total readings and empties the queue. |
-| API → SQLite and rules | `npm test`: 25 passing tests, including ingestion auth, schema/time bounds, idempotent replay, reboot sessions, old backlog ordering, task deduplication, human visits, stable identities, TNVR evidence, live/demo restrictions, provisioning checks, SQLite/outbox persistence, Web Serial protocol/transport checks, saved-map freshness/calibration priorities, food packing estimates, NWS caching/failure handling, and preparedness validation/persistence. |
-| Direct browser ↔ serial device | `npm run test:serial-browser`: guided preview scenarios, isolated demo visits, real caregiver visit persistence, and mocked native Web Serial streams with the local API; checks user-gesture port selection, chooser cancellation, busy-port recovery, live sensor/encoder cards, fragmented data, command round trips, malformed-frame recovery, manual authenticated saves and duplicate replay, null echoes, JSONL download, mobile layout, unplug/reconnect, and unsupported-browser guidance. |
-| Browser forms → API → stored record → UI | `npm run test:browser`: desktop and 390px mobile rendering; no console/page errors; simulated no-echo shows Unknown; visit persists without changing food/census; new identity creates review work; task assignment persists; station provision → authenticated telemetry → visible 80% fill; reload retains state. |
+| API → SQLite and rules | `npm test`: 29 passing tests, including ingestion auth, schema/time bounds, idempotent replay, reboot sessions, old backlog ordering, task deduplication, human visits, stable identities, TNVR evidence, live/demo restrictions, provisioning checks, SQLite/outbox persistence, Web Serial protocol/transport checks, temperature threshold boundaries, legacy thermometer-free packets, invalid/stale/disconnected temperature handling, thermal task deduplication, saved-map freshness/calibration priorities, food packing estimates, NWS caching/failure handling, and preparedness validation/persistence. |
+| Direct browser ↔ serial device | `npm run test:serial-browser`: guided preview scenarios, isolated demo visits, real caregiver visit persistence, and mocked native Web Serial streams with the local API; checks user-gesture port selection, chooser cancellation, busy-port recovery, live sensor/encoder cards, fragmented data, command round trips, malformed-frame recovery, manual authenticated saves and duplicate replay, thermal care checks and map temperatures, OLED temperature-page frames, missing/stale temperature, non-overlapping temperature text at 320/390px, null echoes, JSONL download, mobile layout, unplug/reconnect, and unsupported-browser guidance. |
+| Browser forms → API → stored record → UI | `npm run test:browser`: desktop and 390px mobile rendering; no console/page errors; heat/cold/freezing scenarios update saved station labels; simulated no-echo shows Unknown; visit persists without changing food/census; new identity creates review work; task assignment persists; station provision → authenticated telemetry → visible 80% fill; reload retains state. |
 | Colony preparedness → API → SQLite → browser reload | `npm run test:planning-browser`: South Point Park context, weather exercises independent of sensors, readiness/people/supply saving and reload, packing shortfall, actual downloaded handoff contents, NWS response rendering, unavailable-alert labeling, physical/demo boundaries, and no horizontal overflow at 320/390/768/1024/1440px. A deterministic NWS fixture covers the browser flow; a real NWS request also returned six forecast periods and available alerts during this task. |
 | Client assets | `npm run build` packages the AngularJS client, styles, icon, and locally served vendor script into `dist/`. |
 | MCU target | Arduino CLI builds for Uno R3 and classic Nano/old bootloader, plus Uno with `ENABLE_OLED=0`. |
@@ -24,13 +24,15 @@ The reference-inspired redesign also produces `test-results/colony-dashboard-vie
 
 The climate-preparedness composition is captured in `test-results/planning-desktop.png`, `test-results/planning-viewport.png`, `test-results/planning-mobile.png`, `test-results/planning-mobile-viewport.png`, and `test-results/weather-outlook.png`. The photo's inherited aspect ratio initially caused phone overflow; the corrected sizing passed the five viewport checks. Existing workspace and mocked USB browser flows also passed after the reorganization.
 
+Temperature alert screenshots: `test-results/temperature-heat-desktop.png` and `test-results/temperature-heat-mobile.png`. Builds use Arduino AVR 1.8.8, SSD1306Ascii 1.3.5, DHT sensor library 1.4.7, and Adafruit Unified Sensor 1.1.15. DHT hardware and its pulse timings are mocked in host tests; actual Uno/Nano builds use the real libraries.
+
 ## Target resource usage
 
 | Build | Flash | Static SRAM |
 | --- | --- | --- |
-| Uno, OLED enabled | 12,110 bytes / 32,256 (37%) | 590 / 2,048 (28%) |
-| Classic Nano, OLED enabled | 12,110 bytes / 30,720 (39%) | 590 / 2,048 (28%) |
-| Uno, OLED disabled | 6,338 bytes / 32,256 (19%) | 331 / 2,048 (16%) |
+| Uno, OLED enabled | 14,802 bytes / 32,256 (45%) | 616 / 2,048 (30%) |
+| Classic Nano, OLED enabled | 14,802 bytes / 30,720 (48%) | 616 / 2,048 (30%) |
+| Uno, OLED disabled | 8,778 bytes / 32,256 (27%) | 357 / 2,048 (17%) |
 
 The Arduino AVR core emits its existing unused-parameter warnings in `new.cpp` on a fresh core build; the monitoring sketch compiles successfully. Node 22 emits its documented experimental SQLite warning.
 

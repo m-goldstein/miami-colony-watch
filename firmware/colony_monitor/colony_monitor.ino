@@ -20,6 +20,8 @@
 #endif
 #include <Arduino.h>
 #include <string.h>
+#include <math.h>
+#include <DHT.h>
 #if ENABLE_OLED
 #include <Wire.h>
 #include <SSD1306Ascii.h>
@@ -40,7 +42,15 @@ const uint16_t RAIN_WET_RAW = 250;
 const bool RAIN_ACTIVE_LOW = true;
 const uint8_t FOOD_LOW_PERCENT = 25;
 const uint8_t WATER_ALERT_PERCENT = 60;
+// Ambient care-check triggers, not cat body temperatures. Match public/temperature.js.
+const int16_t TEMPERATURE_COLD_TENTHS_C = 70;
+const int16_t TEMPERATURE_FREEZING_TENTHS_C = 0;
+const int16_t TEMPERATURE_HOT_TENTHS_C = 320;
 
+const uint8_t THERM_PIN = 7; // DHT11 DATA/S; module VCC to 5V and GND to GND.
+// A bare sensor needs a DATA-to-VCC pull-up (4.7k is suitable).
+// Breakout modules commonly include it already; check the module markings.
+DHT thermometer(THERM_PIN, DHT11);
 const uint8_t ENCODER_DT = 2, ENCODER_CLK = 3, ENCODER_SW = 4;
 const uint8_t SONAR_TRIG = 5, SONAR_ECHO = 6;
 const uint8_t TRAFFIC_R = 8, TRAFFIC_Y = 9, TRAFFIC_G = 10;
@@ -49,7 +59,11 @@ const uint8_t RGB_R = 11, RGB_G = 12, RGB_B = 13;
 const uint8_t RAIN_DO = A0, RAIN_AO = A1, WATER_SIGNAL = A2;
 const unsigned long SONAR_INTERVAL_MS = 100, ANALOG_INTERVAL_MS = 500;
 const unsigned long TELEMETRY_INTERVAL_MS = 10000, DISPLAY_INTERVAL_MS = 250;
-const uint8_t SCREEN_COUNT = 4;
+const uint8_t SCREEN_COUNT = 5;
+const unsigned long TEMPERATURE_INTERVAL_MS = 2000;
+unsigned long lastTemperature = 0;
+bool haveTemperature = false;
+int16_t temperatureTenthsC = 0;
 volatile long encoderPosition = 0;
 volatile uint8_t previousState = 0;
 volatile int8_t encoderTransitions = 0;
@@ -125,7 +139,22 @@ void serviceAnalog(unsigned long now) {
   rainRaw = analogRead(RAIN_AO); rainDigital = digitalRead(RAIN_DO);
   waterRaw = analogRead(WATER_SIGNAL); haveAnalog = true;
 }
+void serviceTemperature(unsigned long now) {
+  // Allow startup settling; never poll faster than once every two seconds.
+  if (now - lastTemperature < TEMPERATURE_INTERVAL_MS) return;
+  lastTemperature = now;
+  const float value = thermometer.readTemperature();
+  // DHT library returns NaN on timeout/checksum failure. Failed reads clear
+  // the previous value. Newer DHT11 revisions specify -20..60C; older modules
+  // may only support 0..50C. Verify the actual module before relying on frost readings.
+  haveTemperature = isfinite(value) && value >= -20.0f && value <= 60.0f;
+  if (haveTemperature) temperatureTenthsC = static_cast<int16_t>(lroundf(value * 10.0f));
+}
 void tenths(Print& output, uint16_t value) { output.print(value / 10); output.print('.'); output.print(value % 10); }
+void printTemperature(Print& output) {
+  if (temperatureTenthsC < 0) output.print('-');
+  tenths(output, temperatureTenthsC < 0 ? -temperatureTenthsC : temperatureTenthsC);
+}
 void serviceTelemetry(unsigned long now) {
   if (!haveAnalog || (!sampleRequested && now - lastTelemetry < telemetryIntervalMs)) return;
   sampleRequested = false;
@@ -138,6 +167,8 @@ void serviceTelemetry(unsigned long now) {
   Serial.print(F(",\"rainAnalog\":")); Serial.print(rainRaw);
   Serial.print(F(",\"rainDigital\":")); Serial.print(rainDigital);
   Serial.print(F(",\"waterAnalog\":")); Serial.print(waterRaw);
+  Serial.print(F(",\"temperatureC\":"));
+  if (haveTemperature) printTemperature(Serial); else Serial.print(F("null"));
   Serial.print(F(",\"foodPercent\":"));
   if (foodKnown()) Serial.print(foodPercent()); else Serial.print(F("null"));
   Serial.print(F(",\"rainWet\":")); Serial.print(rainWet() ? F("true") : F("false"));
@@ -148,9 +179,9 @@ void serviceTelemetry(unsigned long now) {
   Serial.println('}');
 }
 void printHello() {
-  Serial.print(F("{\"event\":\"hello\",\"firmware\":\"colony-monitor/1.1\",\"protocolVersion\":1,\"telemetryIntervalMs\":"));
+  Serial.print(F("{\"event\":\"hello\",\"firmware\":\"colony-monitor/1.2\",\"protocolVersion\":1,\"telemetryIntervalMs\":"));
   Serial.print(telemetryIntervalMs);
-  Serial.println(F(",\"screenCount\":4}"));
+  Serial.print(F(",\"screenCount\":")); Serial.print(SCREEN_COUNT); Serial.println('}');
 }
 void handleSerialCommand(unsigned long now) {
   serialCommand[serialCommandLength] = '\0';
@@ -188,8 +219,9 @@ void serviceGateway(unsigned long now) {
 }
 void writeLed(uint8_t pin, bool on, bool activeLow) { digitalWrite(pin, on != activeLow ? HIGH : LOW); }
 void serviceLeds(unsigned long now) {
-  const bool danger = haveAnalog && ((foodKnown() && foodPercent() <= FOOD_LOW_PERCENT) || normalized(waterRaw, WATER_DRY_RAW, WATER_WET_RAW) >= WATER_ALERT_PERCENT);
-  const bool watch = !foodKnown() || !haveAnalog || rainWet();
+  const bool danger = (haveAnalog && ((foodKnown() && foodPercent() <= FOOD_LOW_PERCENT) || normalized(waterRaw, WATER_DRY_RAW, WATER_WET_RAW) >= WATER_ALERT_PERCENT)) ||
+    (haveTemperature && (temperatureTenthsC >= TEMPERATURE_HOT_TENTHS_C || temperatureTenthsC <= TEMPERATURE_FREEZING_TENTHS_C));
+  const bool watch = !foodKnown() || !haveAnalog || rainWet() || !haveTemperature || temperatureTenthsC <= TEMPERATURE_COLD_TENTHS_C;
   writeLed(TRAFFIC_R, danger, TRAFFIC_ACTIVE_LOW);
   writeLed(TRAFFIC_Y, !danger && watch, TRAFFIC_ACTIVE_LOW);
   writeLed(TRAFFIC_G, !danger && !watch, TRAFFIC_ACTIVE_LOW);
@@ -217,7 +249,7 @@ void serviceDisplay(unsigned long now) {
   if (!displayReady) { if (now - lastDisplayAttempt >= 60000) setupDisplay(); return; }
   if (now - lastDisplay < DISPLAY_INTERVAL_MS) return;
   lastDisplay = now; display.clear();
-  display.print(F("COLONY WATCH ")); display.print(screen + 1); display.println(F("/4"));
+  display.print(F("COLONY WATCH ")); display.print(screen + 1); display.print('/'); display.println(SCREEN_COUNT);
   switch (screen) {
     case 0:
       display.println(F("FOOD RESERVE"));
@@ -245,13 +277,23 @@ void serviceDisplay(unsigned long now) {
       display.println(F("Not drinking quality"));
       display.println(F("Wet? Inspect access"));
       break;
-    default:
+    case 3:
       display.println(F("STATION HEALTH"));
       display.println(uplinkRecent(now) ? F("Saved ACK: recent") : (browserRecent(now) ? F("Browser ACK: recent") : F("USB link: waiting")));
       display.print(F("Packets: ")); display.println(sequence);
       display.print(F("Uptime min: ")); display.println(now / 60000);
       display.println(F("USB -> browser/Node"));
       display.println(F("Sensing stays active"));
+      break;
+    default:
+      display.println(F("STATION TEMPERATURE"));
+      display.print(F("Ambient: "));
+      if (haveTemperature) { printTemperature(display); display.println(F(" C")); } else display.println(F("UNKNOWN"));
+      display.println(F("DHT11 on D7"));
+      display.println(F("Not cat body temp"));
+      display.println(!haveTemperature ? F("Check thermometer") : temperatureTenthsC <= TEMPERATURE_FREEZING_TENTHS_C ? F("FREEZE: warm shelter") :
+        temperatureTenthsC <= TEMPERATURE_COLD_TENTHS_C ? F("COLD: dry shelter") : temperatureTenthsC >= TEMPERATURE_HOT_TENTHS_C ? F("HEAT: shade + water") : F("No temperature alert"));
+      display.println(F("Verify frost rating"));
       break;
   }
   display.print(F("Turn ")); display.print(screenTravel); display.print('/'); display.print(ENCODER_DETENTS_PER_SCREEN); display.print(F(" -> view"));
@@ -272,12 +314,13 @@ void setup() {
   digitalWrite(SONAR_TRIG, LOW); pinMode(SONAR_TRIG, OUTPUT); pinMode(SONAR_ECHO, INPUT);
   pinMode(WATER_SIGNAL, INPUT); pinMode(RAIN_AO, INPUT); pinMode(RAIN_DO, INPUT_PULLUP);
   Serial.begin(115200);
-  Serial.println(F("{\"event\":\"boot\",\"firmware\":\"colony-monitor/1.1\"}"));
+  Serial.println(F("{\"event\":\"boot\",\"firmware\":\"colony-monitor/1.2\"}"));
+  thermometer.begin(); lastTemperature = millis();
   setupDisplay();
 }
 void loop() {
   serviceEncoder();
   const unsigned long now = millis();
-  serviceGateway(now); serviceSonar(now); serviceAnalog(now);
+  serviceGateway(now); serviceSonar(now); serviceAnalog(now); serviceTemperature(now);
   serviceTelemetry(now); serviceLeds(now); serviceDisplay(now);
 }

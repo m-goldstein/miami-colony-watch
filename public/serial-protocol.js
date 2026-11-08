@@ -1,4 +1,5 @@
 // Shared by the direct USB interface and its Node/browser tests. No DOM required.
+import { validTemperature } from './temperature.js';
 const uint32 = value => Number.isInteger(value) && value >= 0 && value <= 4294967295;
 function bounded(value, min, max, integer = false) {
   return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max && (!integer || Number.isInteger(value));
@@ -27,7 +28,8 @@ export function parseSerialLine(line) {
   }
   if (data.sonarDistanceCm === null && data.foodPercent !== undefined && data.foodPercent !== null) throw new Error('Unknown sonar cannot give a food estimate');
   for (const key of ['buttonPressed', 'rainWet']) if (data[key] !== undefined && typeof data[key] !== 'boolean') throw new Error(`Invalid ${key}`);
-  if (data.screen !== undefined && !bounded(data.screen, 0, 3, true)) throw new Error('Invalid display screen');
+  if (data.temperatureC != null && !validTemperature(data.temperatureC)) throw new Error('Invalid temperatureC');
+  if (data.screen !== undefined && !bounded(data.screen, 0, 4, true)) throw new Error('Invalid display screen');
   if (data.encoderPosition !== undefined && !bounded(data.encoderPosition, -2147483648, 2147483647, true)) throw new Error('Invalid encoder position');
   return { type: 'reading', data };
 }
@@ -56,6 +58,6 @@ export class SerialLineDecoder {
 
 export function workspacePacket(reading, deviceId, bootId, sampledAt) {
   const packet = { deviceId, bootId, sampledAt };
-  for (const key of ['schemaVersion', 'sequence', 'uptimeMs', 'sonarDistanceCm', 'sonarValidSamples', 'rainAnalog', 'rainDigital', 'waterAnalog']) packet[key] = reading[key];
+  for (const key of ['schemaVersion', 'sequence', 'uptimeMs', 'sonarDistanceCm', 'sonarValidSamples', 'rainAnalog', 'rainDigital', 'waterAnalog', 'temperatureC']) packet[key] = reading[key];
   return packet;
 }
