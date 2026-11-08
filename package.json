@@ -1,0 +1,26 @@
+{
+  "name": "miami-colony-watch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local community-cat operations dashboard and Arduino edge gateway for Miami-Dade.",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --watch --env-file-if-exists=.env server/index.js",
+    "build": "node scripts/build.js",
+    "test": "node --test test/*.test.js",
+    "test:browser": "node test/browser.js",
+    "test:serial-browser": "node test/serial-browser.js",
+    "test:firmware": "node test/firmware.js",
+    "gateway": "node --env-file-if-exists=.env gateway/index.js",
+    "simulate": "node --env-file-if-exists=.env scripts/simulate.js",
+    "ports": "node scripts/ports.js"
+  },
+  "dependencies": {
+    "angular": "1.8.3",
+    "express": "5.1.0",
+    "serialport": "13.0.0"
+  },
+  "devDependencies": { "@playwright/test": "1.58.2" }
+}
