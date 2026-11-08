@@ -24,13 +24,14 @@ const server = await new Promise(resolve => { const running = context.app.listen
 const base = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
-  browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_PATH, args: ['--no-sandbox'] });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } }), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(base, { waitUntil: 'networkidle' });
   const state = async () => (await page.request.get(base + '/api/care-demo')).json();
   const upload = async (author, file = 'public/assets/miami-community-cat.png', analyze = true) => {
-    await page.locator('#open-phone-update').click();
+    await page.locator('#upload-cat-photo').click();
+    assert.equal(await page.locator('#phone-update-dialog').isVisible(), true);
     await page.locator('#field-ai-availability').filter({ hasText: 'OpenAI analyzes' }).waitFor();
     assert.equal(await page.locator('#field-ai-check').isChecked(), true);
     await page.locator('#phone-update-author').fill(author); await page.locator('#phone-update-text').fill('Cat at the feeding corner. Please check the food area.');

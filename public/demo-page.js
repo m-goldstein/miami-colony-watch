@@ -20,6 +20,7 @@ export class DemoPage {
       else { this.step++; this.showStep(true); }
     });
     el('demo-guide-close').addEventListener('click', () => this.close());
+    el('upload-cat-photo').addEventListener('click', () => { void this.openPhotoUpload(); });
     el('demo-field-note').addEventListener('click', () => { useDemo(); el('open-phone-update').click(); });
     el('classify-sample').addEventListener('click', () => {
       const open = el('photo-demo-result').hidden;
@@ -28,7 +29,7 @@ export class DemoPage {
       el('classify-sample').firstChild.textContent = open ? 'Hide photo suggestions ' : 'Preview photo suggestions ';
       el('photo-demo-status').textContent = open
         ? 'Sample annotations shown. Confirm the identity in the journal; this preview does not change the census.'
-        : 'Prepared sample annotations. No live image model runs in this prototype.';
+        : 'Prepared sample annotations. Upload a photo to request AI suggestions in the journal.';
     });
     el('review-photo-demo').addEventListener('click', () => { void this.reviewPhoto(); });
     const sections = ['network', 'weather-sensors', 'colony-journal', 'image-classification'];
@@ -64,6 +65,15 @@ export class DemoPage {
     el('journal-proof').textContent = visits
       ? `${visits} saved care visit${visits === 1 ? '' : 's'} · included in the colony’s evidence report.`
       : 'Saved visits become part of the colony’s evidence report.';
+  }
+  async openPhotoUpload() {
+    this.useDemo();
+    await this.careDesk.queue;
+    if (!this.careDesk.state) {
+      el('photo-demo-status').textContent = 'The shared journal is unavailable. Please reload and try again.';
+      return;
+    }
+    el('open-phone-update').click(); el('field-photo').focus();
   }
   async reviewPhoto() {
     const button = el('review-photo-demo'); button.disabled = true;

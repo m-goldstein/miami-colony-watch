@@ -102,6 +102,9 @@ try {
   await page.locator('#colony-journal').screenshot({ path: 'test-results/demo-care-tools-mobile.png' });
   await page.route('**/api/care-demo', route => route.abort());
   await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('#upload-cat-photo').click();
+  await page.locator('#photo-demo-status').filter({ hasText: 'unavailable' }).waitFor();
+  assert.equal(await page.locator('#phone-update-dialog').isVisible(), false);
   await page.locator('#classify-sample').click();
   await page.locator('#review-photo-demo').click();
   await page.locator('#photo-demo-status').filter({ hasText: 'unavailable' }).waitFor();

@@ -14,7 +14,7 @@ const start = async () => {
 };
 const stop = async () => { await new Promise(resolve => server.close(resolve)); context.store.close(); };
 try {
-  await start(); browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  await start(); browser = await chromium.launch({ headless: true, executablePath: process.env.BROWSER_PATH, args: ['--no-sandbox'] });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(base, { waitUntil: 'networkidle' });
@@ -69,6 +69,7 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.ticket-evidence-count').filter({ hasText: '2 source reports' }).waitFor();
   await page.locator('.rescue-task .ticket-photo-gallery img').first().scrollIntoViewIfNeeded();
+  await page.locator('.rescue-task .ticket-photo-gallery img').first().scrollIntoViewIfNeeded();
   await page.locator('.rescue-task .ticket-photo-gallery img').first().evaluate(img => img.decode());
   const when = new Date().toISOString().slice(0, 10);
   const report = await (await page.request.get(`${base}/api/care-demo/report?from=${when}&to=${when}`)).json();
@@ -109,6 +110,7 @@ try {
   await stop(); await start();
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.locator('.ticket-evidence-count').filter({ hasText: '2 source reports' }).waitFor();
+  await page.locator('.rescue-task .ticket-photo-gallery img').first().scrollIntoViewIfNeeded();
   await page.locator('.rescue-task .ticket-photo-gallery img').first().scrollIntoViewIfNeeded();
   await page.locator('.rescue-task .ticket-photo-gallery img').first().evaluate(img => img.decode());
   assert.equal((await state()).tasks[0].photos.length, 1);
