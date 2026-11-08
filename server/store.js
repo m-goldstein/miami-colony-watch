@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const tables = new Set(['colonies', 'devices', 'cats', 'tasks', 'visits', 'observations']);
+const tables = new Set(['colonies', 'devices', 'cats', 'tasks', 'visits', 'observations', 'care_demo']);
 export class Store {
   constructor(path) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });

@@ -36,7 +36,7 @@ export class ColonyPlanning {
   update(context) {
     this.context = context;
     if (this.mode !== context.mode) { this.mode = context.mode; this.renderOutlook(); }
-    const colony = context.colony, key = `${context.mode}:${colony?.id || 'unlinked'}`;
+    const colony = context.colony, key = `${context.mode}:${colony?.id || 'unlinked'}:${context.planRevision || ''}`;
     const canSave = !!colony;
     el('save-plan').disabled = !canSave || !!this.saving;
     put('focus-name', colony?.name || (context.mode === 'demo' ? 'South Point Park' : 'Link your colony station'));
@@ -115,7 +115,7 @@ export class ColonyPlanning {
     this.saving = true; el('save-plan').disabled = true; put('plan-save-status', 'Saving the colony care plan…');
     const submittedKey = this.key, submittedRevision = this.revision, body = this.readForm();
     try {
-      const response = await fetch(`/api/colonies/${encodeURIComponent(colony.id)}/preparedness`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000) });
+      const response = await fetch(this.context.planEndpoint || `/api/colonies/${encodeURIComponent(colony.id)}/preparedness`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Plan could not be saved.');
       colony.preparedness = result; this.onSaved(colony.id, result);
       if (this.key === submittedKey && this.revision === submittedRevision) { this.dirty = false; put('plan-save-status', `Saved ${new Date(result.updatedAt).toLocaleTimeString()} · ${colony.name}${colony.demo ? ' demo plan' : ''}`); }

@@ -1,6 +1,8 @@
-# Colony Watch — Miami field operations
+# Colony Watch — shared care for community cats
 
-A local **Node.js + AngularJS 1.8** workspace that connects community-cat care to an Arduino edge station. The homepage tells the story through **South Point Park**, a fictional example colony in South Beach: sense food and wetness on the ground, look ahead at area weather, and prepare a shared care plan. The field workspace retains caregiver visits, cat/TNVR records, action queues, and device deployment records.
+This review branch leads with the Bonus hackathon challenge: scattered field updates become a trustworthy cat census, assigned care, documented visits, and an evidence-backed report. South Point Park is the fictional example, with 14 baseline cats and 11 historical TNVR confirmations. The Arduino and weather tools contribute to the same care story.
+
+**Review branch:** `review/bonus-cat-care`, in the separate `miami-colony-watch-judges` worktree. The original checkout, running site, and database remain unchanged. [Review instructions and demo walkthrough](docs/BONUS_REVIEW.md).
 
 The original component-test sketch remains unchanged in the neighboring `pins_layout/` directory. Monitoring firmware lives in this project's `firmware/colony_monitor/` directory.
 
@@ -9,24 +11,34 @@ The original component-test sketch remains unchanged in the neighboring `pins_la
 Requires **Node.js 22.13+**, npm, and a modern browser. Node's built-in SQLite may print an experimental-feature warning on Node 22.
 
 ```bash
-cd /home/max/hackathon/DevDayHackathon/miami-colony-watch
-npm install
-npm start
+cd /home/max/hackathon/DevDayHackathon/miami-colony-watch-judges
+npm ci
+npm run review
 ```
 
-Open **http://127.0.0.1:3000** for the cat-centered station dashboard. It starts in **Demo colony** with clearly labeled fictional readings, an illustrated feeding station, changing food/rain/water visuals, and a short guided care demo. Choose **Live Arduino** or Connect Arduino for real measurements. **Colony workspace** opens the existing management tools at **http://127.0.0.1:3000/colonies.html**, where the fictional demonstration works without hardware. Dependencies are already installed in this working copy; `npm ci` reproduces the lockfile in a fresh copy.
+Open **http://127.0.0.1:3001**. `npm run review` uses this worktree’s `data/review.sqlite`, so it can run alongside the original website on port 3000. The fictional rescue exercise persists independently inside its `care_demo` record. **Try the rescue story** loads six sample messages, photos, location and clinic notes. Review identities, add an alias, assign a follow-up, document a visit, and export the dated evidence report. Reloading retains your work; Reset exercise clears only this sandbox.
+
+The **field workspace** at **http://127.0.0.1:3001/colonies.html** retains its separate six-colony sample dataset and physical-device tools. **Live Arduino** continues to support direct USB readings; no hardware is required for the rescue exercise. This review has not been pushed or deployed.
 
 The app binds only to `127.0.0.1`. It is a local coordinator workspace, without multi-user authentication. Source control is separate from hosting: the app has not been deployed to Vercel or published as a hosted website.
 
-The default demonstration contains **six fictional colonies, 80 individually recorded cats, and 60 confirmed demo TNVR records**. These are invented pilot records, not Miami population statistics. Names, people, sensor histories, and map locations are clearly labeled fictional. The map is an illustrative neighborhood schematic, not a navigation map.
+The separate field-workspace demonstration contains **six fictional colonies, 80 individually recorded cats, and 60 confirmed demo TNVR records**. These are invented pilot records, not Miami population statistics. Names, people, sensor histories, and map locations are clearly labeled fictional. The map is an illustrative neighborhood schematic, not a navigation map.
 
-## Try the colony-care demo
+## Try the rescue story
 
-The interface follows the supplied `ui-inspo/catssss/` and newer `ui-inspo/` references: warm ivory, teal, coral, Miami cat artwork, and mobile navigation. The opening introduces climate preparedness, then focuses on South Point Park and its Arduino. Three sensor cards lead to the illustrated edge station, weather outlook, and practical care plan. The compact colony network and population-management mission follow below. See [design and asset notes](docs/UI_DESIGN.md).
+The homepage care inbox preserves original sources and human review decisions. Two Mango/“Stripey” photo updates link to one stable identity. Pippa’s care concern produces a follow-up with an owner and a recorded outcome; a separately verified fictional clinic note records her TNVR procedure by date. Pebble can become a new identity with TNVR unknown. Phone notes follow the same review path. Sample suggestions are prepared annotations, not live AI or automatic photo matching.
+
+The report separates current census totals from dated sightings, distinct cats observed, documented procedures, visits and completed follow-ups. Its CSV includes event IDs, reviewer, clinic reference, original source text and review notes. The pilot planner accepts the team’s own quotes and maintenance assumptions; no vendor costs or volunteer-time savings are invented.
+
+See [the complete walkthrough](docs/BONUS_REVIEW.md) and run `npm run test:rescue-browser` for the full UI → API → SQLite → reload path.
+
+## Hardware and weather tools
+
+The interface follows the supplied `ui-inspo/catssss/` and newer `ui-inspo/` references: warm ivory, teal, coral, Miami cat artwork, and mobile navigation. After the rescue desk, the hardware tools focus on South Point Park and its Arduino. Three sensor cards lead to the illustrated edge station, weather outlook, and practical care plan. The compact colony network and population-management mission follow below. See [design and asset notes](docs/UI_DESIGN.md).
 
 **Weather outlook** includes clearly fictional Everyday care, Rain ahead, and Storm prep exercises. **Get NWS outlook** requests the real South Beach area forecast and active alerts through the local server. It needs internet access but no API key; forecasts are cached for ten minutes and carry issue/retrieval timestamps. Missing rain probabilities and an unavailable alert feed remain unknown. The outlook is area-level weather, not a reading or forecast from the Arduino, and does not automatically complete readiness tasks. Live Arduino mode hides the fictional outlook controls.
 
-**Care plan** saves a five-item readiness checklist, lead and backup caregiver, next check-in, handoff notes, and a food packing calculation to the selected colony in SQLite. Demo plans stay on demo records; real plans require linking a physical station. Portions and packed weight are entered by the caregiver, never inferred from hopper percentage. **Download care brief** produces a text handoff with the current form, source-labeled sensor snapshot, outlook, people, checklist, and supply shortfall. Unsaved form changes are identified in the brief. Nothing is messaged to anyone.
+**Care plan** saves a five-item readiness checklist, lead and backup caregiver, next check-in, handoff notes, and a food packing calculation to the rescue exercise in demo mode, or to the linked physical colony in live mode. Demo plans stay on demo records; real plans require linking a physical station. Portions and packed weight are entered by the caregiver, never inferred from hopper percentage. **Download care brief** produces a text handoff with the current form, source-labeled sensor snapshot, outlook, people, checklist, and supply shortfall. Unsaved form changes are identified in the brief. Nothing is messaged to anyone.
 
 The **colony map** shows saved local records separately from the USB panel. Select a pin or colony entry, filter for care checks, and refresh records. Positions are explicitly schematic rather than GPS locations. **Care for this colony** opens the workspace with that colony selected for caregiver visits. Demo and physical records remain separate.
 
@@ -35,7 +47,7 @@ The community mission pairs the **300,000–400,000** free-roaming-cat range wit
 - Click **Play the care demo** for a four-step walkthrough: fictional storm outlook and low food → refill/preparation → wet-weather check → care visit and readiness plan.
 - The scenario buttons also let you explore a normal day, low reserve, rain, standing water, or an offline station individually.
 - Food reserve, rain around the shelter, water at the station base, and the next suggested caregiver action update together. No cat-health or cat-presence inference is made.
-- **Refill demo hopper** updates only the preview. **Save demo visit** records a local preview note, without creating workspace visits or changing real station records.
+- **Refill demo hopper** updates only the preview. **Save demo visit** persists the fictional visit in the rescue exercise and dated report, without changing field-workspace visits or real station records.
 - Live mode starts unknown until actual USB frames arrive. A live caregiver visit is saved to the existing API only after linking a physical station and entering the visit evidence. It never fabricates a sensor update.
 - Cat portraits are illustrations of caregiver records. Census and TNVR records remain in the field workspace, which opens separately so an active USB session can continue.
 

@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { Store } from './store.js';
 import { seedDemo } from './seed.js';
 import { createWeatherService } from './weather.js';
+import { careDemoRouter } from './care-demo.js';
 import { id, hashKey, text, number, fail, calibration, validateReading, measurements, deviceView, evaluateDevice, DEFAULT_CALIBRATION } from './domain.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -79,6 +80,7 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
   }
   app.get('/api/health', (req, res) => res.json({ ok: true, service: 'colony-watch', storage: 'sqlite-local', demoMode, time: stamp() }));
   app.get('/api/state', (req, res) => res.json(snapshot()));
+  app.use('/api/care-demo', careDemoRouter(store, demoMode));
   app.get('/api/weather/south-point', async (req, res) => {
     try { res.json(await weatherService()); }
     catch { res.status(503).json({ error: 'The NWS outlook could not be refreshed. Check NWS Miami for current weather and alerts.' }); }
@@ -219,6 +221,8 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
     res.type('text/csv').attachment('colony-watch-report.csv').send(rows.map(row => row.map(cell).join(',')).join('\r\n'));
   });
   app.get('/api/research', (req, res) => res.type('text/plain').sendFile(resolve(root, 'docs/COMMUNITY_RESEARCH.md')));
+  app.get('/review-notes', (req, res) => res.type('text/plain').sendFile(resolve(root, 'docs/BONUS_REVIEW.md')));
+  app.get('/source-license', (req, res) => res.type('text/plain').sendFile(resolve(root, 'LICENSE')));
   app.get('/firmware/colony_monitor.ino', (req, res) => res.type('text/plain').attachment('colony_monitor.ino').sendFile(resolve(root, 'firmware/colony_monitor/colony_monitor.ino')));
   app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not found' }));
   app.use('/vendor', express.static(resolve(root, 'node_modules/angular'), { index: false }));

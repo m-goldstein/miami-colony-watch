@@ -18,8 +18,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(base, { waitUntil: 'networkidle' });
-  assert.equal(await page.locator('h1').innerText(), 'A little foresight.\nA safer colony.');
-  await page.locator('#focus-name').filter({ hasText: 'South Point Park' }).waitFor();
+  assert.equal(await page.locator('h1').innerText(), 'Know every cat.\nShare every next step.');
+  await page.locator('.demo-label b').filter({ hasText: 'South Point Park' }).waitFor();
   await page.locator('#plan-lead').filter({ visible: true }).waitFor();
   assert.equal(await page.locator('#plan-lead').inputValue(), 'Elena');
   await page.locator('[data-outlook="storm"]').click();
@@ -36,7 +36,7 @@ try {
   assert.equal(await page.locator('#supply-gap').innerText(), '1.52 kg still to pack');
   await page.locator('#save-plan').click();
   await page.locator('#plan-save-status').filter({ hasText: /Saved .*South Point Park/ }).waitFor();
-  const saved = context.store.get('colonies', 'col-mangrove').preparedness;
+  const saved = context.store.get('care_demo', 'south-point-exercise-v1').preparedness;
   assert.equal(saved.backup, 'Marco'); assert.equal(saved.checklist.backup, true);
   assert.equal(context.store.list('visits').length, 0);
   await page.reload({ waitUntil: 'networkidle' });

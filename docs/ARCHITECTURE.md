@@ -97,6 +97,17 @@ Each active sensor task is deduplicated per device/type. Assignment and completi
 | --- | --- |
 | `GET /api/health` | Local process/storage mode/time health response |
 | `GET /api/state` | Joined workspace snapshot, safe device metadata, and recent histories |
+| `GET /api/care-demo` | Persistent isolated fictional rescue exercise |
+| `POST /api/care-demo/import` | Idempotently receive six annotated sample updates |
+| `POST /api/care-demo/updates` | Receive a fictional phone note for review |
+| `POST /api/care-demo/updates/:id/review` | Human identity/alias, new identity, colony note, dismissal or procedure review |
+| `PATCH /api/care-demo/tasks/:id` | Assign a follow-up or complete it with a dated care visit |
+| `POST /api/care-demo/station` | Persist a sample reading and create any required human follow-up |
+| `POST /api/care-demo/visits` | Save a fictional care visit independently of sensor/census changes |
+| `PATCH /api/care-demo/preparedness` | Save the exercise's readiness/people/food plan |
+| `PATCH /api/care-demo/pilot` | Save entered equipment/operation budget and maintenance assumptions |
+| `GET /api/care-demo/report[.csv]?from=YYYY-MM-DD&to=YYYY-MM-DD` | Inclusive UTC activity report and original-source evidence export |
+| `POST /api/care-demo/reset` | Reset only the fictional exercise, requiring its explicit confirmation string |
 | `GET /api/weather/south-point` | NWS forecast/alerts for the South Beach example area; 10-minute process cache, explicit 503 on forecast failure |
 | `POST /api/readings` | Authenticated station ingestion; `Authorization: Bearer DEVICE_API_KEY` |
 | `POST /api/colonies` | Create a colony with neighborhood/caregiver/plan fields |
@@ -117,6 +128,10 @@ Writes use JSON objects, at most 32KB. Validation failures are 400; invalid stat
 `server/weather.js` resolves the NWS point to its grid forecast and requests active point alerts independently. It bounds each upstream request, coalesces simultaneous refreshes, caches successful responses for ten minutes, and exposes `alertsAvailable: false` if alert retrieval fails. It never substitutes an invented forecast for a failed request. `public/colony-planning.js` keeps explicit fictional exercises separate from NWS weather and the sensor stream. The weather location is fixed to the South Beach example area rather than inferred from schematic map coordinates.
 
 Preparedness is stored as a nested `preparedness` object on the colony, with `updatedAt`. Saving does not alter telemetry, visits, tasks, or census. Food weight comes exclusively from caregiver-entered quantities; hopper percentages cannot produce a weight or days-remaining claim. Client downloads use the current form and labeled current sensor/outlook context, with no upload or notification service.
+
+The review branch adds a separately namespaced JSON exercise in the `care_demo` table; none of its cats, visits, updates, tasks, budgets or sensor samples are inserted into the original workspace collections. Every write uses a SQLite transaction. A failed review or completion rolls back both state and evidence. Original update text is retained, known names/aliases block new duplicate identities, and already-confirmed TNVR cannot create another completion. A procedure event stores its documented date and the later recording time separately. Baseline confirmations are not activity events.
+
+`CareDesk` in `public/care-desk.js` serializes its writes, refreshes the exercise and report after acknowledgements, and exposes source-to-cat/task/report links. Its saved sensor scenarios also drive the existing serial illustration; the live USB path remains separate. Demo readiness plans and visits persist in the exercise; live plans and visits retain their original API routes. Reset is limited to the exercise record and cannot delete workspace or physical-device data. This namespace is unavailable when `DEMO_MODE=false`.
 
 ## Trust and privacy boundary
 

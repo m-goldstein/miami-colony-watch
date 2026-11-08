@@ -1,8 +1,9 @@
 # ColonyWatch visual direction
 
-The homepage leads with “A little foresight. A safer colony.” and a waterfront cat photograph, then moves from South Point Park's colony record to its Arduino edge station, weather outlook, and shared preparedness plan. The colony network, population-management mission, cat identities, and field activity follow below. The application runs locally and has not been deployed as a hosted website.
+The review homepage leads with “Know every cat. Share every next step.” A nonprofit problem statement introduces the fictional rescue team, followed by the care inbox, source review, assigned follow-ups, stable cat identities, dated reports, and a practical pilot planner. Hardware readings, area weather, and the readiness plan remain below and share the exercise’s saved sensor/plan context. The original site remains in its own checkout on `main`; this branch is local review work.
 
-The supplied references are `ui-inspo/catssss/image0.png` through `image3.png`, plus the later `ui-inspo/image0.png`, `image4.png`, and `image5.png`. The implementation combines their ivory background, lagoon teal controls, coral actions, bold sans-serif headings, cat-and-Miami mark, friendly native illustrations, mint surfaces, outline sensor icons, selected-colony map card, and mobile bottom navigation. The local photograph anchors the opening. Existing sensor/map styles live in `public/serial.css`; the new composition and planning surfaces are in `public/colony-planning.css`.
+
+The supplied references are `ui-inspo/catssss/image0.png` through `image3.png`, plus the later `ui-inspo/image0.png`, `image4.png`, and `image5.png`. The implementation combines their ivory background, lagoon teal controls, coral actions, bold sans-serif headings, cat-and-Miami mark, friendly native illustrations, mint surfaces, outline sensor icons, selected-colony map card, and mobile bottom navigation. The local photograph anchors the opening. Existing sensor/map styles live in `public/serial.css`; the climate/planning surfaces are in `public/colony-planning.css`, and the rescue desk is in `public/care-desk.css`. The same local photograph supplies explicitly illustrative sample photo attachments; no new image was generated for this branch.
 
 ## Behavior
 

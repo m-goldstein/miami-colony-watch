@@ -3,6 +3,7 @@ import { workspacePacket } from './serial-protocol.js';
 import { scenarios, demoReading, careState } from './colony-demo.js';
 import { ColonyMap } from './colony-map.js';
 import { ColonyPlanning } from './colony-planning.js';
+import { CareDesk } from './care-desk.js';
 
 const el = id => document.getElementById(id);
 const text = (id, value) => { el(id).textContent = value; };
@@ -13,11 +14,18 @@ const history = [], logs = [];
 let latest = null, readingCount = 0, invalidCount = 0, firmware = 'waiting', confirmedInterval = null;
 let bootId = sessionId(), previousSequence = null, saving = false, startupMessage = '', mode = 'demo';
 let workspace = null, catsSignature = '', toastTimer, tourStep = null, visitTarget = null, visitSaving = false;
+let careExercise = null;
 const demo = { scenario: 'calm', history: [], latest: null, events: [], sequence: 0 };
 const colonyMap = new ColonyMap();
 const planning = new ColonyPlanning({ notify, onSaved: (colonyId, plan) => {
+  if (colonyId === careExercise?.colony.id) { careExercise.preparedness = plan; return; }
   const colony = workspace?.colonies.find(c => c.id === colonyId); if (colony) colony.preparedness = plan;
 } });
+const careDesk = new CareDesk({ notify, onChange: state => {
+  if (careExercise && careExercise.createdAt !== state.createdAt) { demo.history.length = 0; demo.events.length = 0; demo.sequence = 0; tourStep = null; }
+  careExercise = state; catsSignature = ''; render();
+},
+  onStation: scenario => { if (mode === 'demo') applyScenario(scenario, false, false); } });
 for (let i = 0; i < 8; i++) {
   const reading = demoReading('calm', demo.sequence++);
   reading.foodPercent += 7 - i; reading.sonarDistanceCm = +(30 - reading.foodPercent * 0.25).toFixed(1);
@@ -41,6 +49,8 @@ function liveFresh() { return connection.state === 'connected' && latest && Date
 function active() { return mode === 'demo' ? { latest: demo.latest, fresh: scenarios[demo.scenario].online, history: demo.history } : { latest, fresh: !!liveFresh(), history }; }
 function selectedStation() { return workspace?.devices.find(d => d.id === el('station-id').value && !d.demo) || null; }
 function activeColony() {
+  if (mode === 'demo' && careExercise) return { ...careExercise.colony, demo: true, catCount: careExercise.cats.length,
+    tnvrCount: careExercise.cats.filter(cat => cat.tnvrStatus === 'confirmed').length, preparedness: careExercise.preparedness };
   return mode === 'demo' ? workspace?.colonies.find(c => c.demo && c.name === 'South Point Park') || workspace?.colonies.find(c => c.demo) : workspace?.colonies.find(c => c.id === selectedStation()?.colonyId);
 }
 function setMode(value) {
@@ -49,8 +59,10 @@ function setMode(value) {
   else el('device-key').value = '';
   render(); drawChart();
 }
-function applyScenario(key, manual = true) {
+function applyScenario(key, manual = true, persist = true) {
   if (!scenarios[key]) return;
+  if (manual) tourStep = null;
+  if (persist) { void careDesk.station(key); return; }
   mode = 'demo'; demo.scenario = key;
   const point = { reading: demoReading(key, demo.sequence++), at: new Date().toISOString(), bootId: 'demo-preview' };
   demo.latest = point; demo.history.push(point); if (demo.history.length > 120) demo.history.shift();
@@ -65,7 +77,7 @@ function renderCats() {
   const fallback = [{ id: 'demo-mango', name: 'Mango', description: 'Orange tabby, a fictional neighbor', tnvrStatus: 'unknown' },
     { id: 'demo-luna', name: 'Luna', description: 'Gray coat, a fictional neighbor', tnvrStatus: 'unknown' },
     { id: 'demo-pepper', name: 'Pepper', description: 'Black coat, a fictional neighbor', tnvrStatus: 'unknown' }];
-  const cats = colony ? workspace.cats.filter(c => c.colonyId === colony.id).slice(0, 3) : mode === 'demo' ? fallback : [];
+  const cats = mode === 'demo' && careExercise ? careExercise.cats.slice(0, 3) : colony ? workspace.cats.filter(c => c.colonyId === colony.id).slice(0, 3) : mode === 'demo' ? fallback : [];
   const signature = JSON.stringify([mode, colony?.id, cats]); if (signature === catsSignature) return; catsSignature = signature;
   el('cat-cards').replaceChildren(); el('neighbors-empty').hidden = cats.length > 0;
   text('neighbors-note', mode === 'demo' ? 'Fictional demo cats · illustrated portraits, caregiver records, and TNVR follow-up.' : 'Caregiver-entered records for the linked station · these portraits are illustrations, not identification photos.');
@@ -86,7 +98,8 @@ function renderCats() {
 }
 function renderTimeline() {
   const colony = activeColony();
-  const events = mode === 'demo' ? demo.events : (workspace?.visits || []).filter(v => v.colonyId === colony?.id).map(v => ({ title: `${v.author} logged a field visit`, detail: v.notes || `${v.catsSeen} cats observed.`, at: v.createdAt }));
+  const savedDemoVisits = (careExercise?.visits || []).map(v => ({ title: `${v.author} logged a demo visit`, detail: v.notes || `${v.catsSeen} cats observed.`, at: v.createdAt }));
+  const events = mode === 'demo' ? [...savedDemoVisits, ...demo.events].sort((a, b) => b.at.localeCompare(a.at)) : (workspace?.visits || []).filter(v => v.colonyId === colony?.id).map(v => ({ title: `${v.author} logged a field visit`, detail: v.notes || `${v.catsSeen} cats observed.`, at: v.createdAt }));
   const list = el('care-timeline'); list.replaceChildren();
   for (const event of (events.length ? events.slice(0, 3) : [{ title: 'A visit makes the picture complete', detail: 'Link a station and record the care you actually provided.', at: null }])) {
     const row = document.createElement('li'), dot = document.createElement('span'); dot.className = 'timeline-dot'; dot.textContent = '✓';
@@ -160,7 +173,8 @@ function render() {
     text('tour-next', tourStep === 3 ? 'Finish demo ✓' : 'Next moment →');
   }
   renderCats(); renderTimeline(); colonyMap.update(workspace, mode);
-  planning.update({ mode, colony, reading: current.latest?.reading, receivedAt: current.latest?.at, fresh: current.fresh });
+  planning.update({ mode, colony, reading: current.latest?.reading, receivedAt: current.latest?.at, fresh: current.fresh,
+    planEndpoint: mode === 'demo' && careExercise ? '/api/care-demo/preparedness' : null, planRevision: mode === 'demo' ? careExercise?.createdAt : null });
   text('edge-colony-label', colony?.name || (mode === 'demo' ? 'South Point Park' : 'YOUR LINKED COLONY'));
 }
 function drawChart() {
@@ -218,7 +232,7 @@ function openVisit() {
     el('station-id').focus(); notify('Choose the physical station so the visit goes to the right colony.'); return;
   }
   visitTarget = { mode, colonyId: station?.colonyId || null };
-  text('visit-context', mode === 'demo' ? 'Fictional demo visit. It stays in this preview and does not change workspace records.' : `A real caregiver record for ${activeColony()?.name || 'the linked colony'}. This will not fabricate a sensor reading.`);
+  text('visit-context', mode === 'demo' ? 'Fictional care visit, saved to the rescue exercise and its dated report. Physical records are unchanged.' : `A real caregiver record for ${activeColony()?.name || 'the linked colony'}. This will not fabricate a sensor reading.`);
   text('visit-submit', mode === 'demo' ? 'Save demo visit' : 'Save field visit');
   el('visit-author').value = mode === 'demo' ? 'Demo caregiver' : '';
   el('visit-cats').value = 0; el('visit-food').checked = false; el('visit-water').checked = false;
@@ -269,9 +283,9 @@ el('visit-form').addEventListener('submit', async event => {
   visitSaving = true; el('visit-submit').disabled = true;
   try {
     if (visitTarget.mode === 'demo') {
-      demo.events.unshift({ title: `${body.author} logged a demo visit`, detail: `${body.catsSeen} cats observed in the preview. ${body.notes || 'Care recorded; no workspace data changed.'}`, at: new Date().toISOString() });
+      await careDesk.recordVisit(body);
       if (tourStep === 3) tourStep = null;
-      notify('Demo visit recorded in this preview. The weather reading stays as it was.');
+      notify('Demo visit saved to the rescue exercise and report. Sensor evidence stays unchanged.');
     } else {
       const response = await fetch('/api/visits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, colonyId: visitTarget.colonyId }), signal: AbortSignal.timeout(5000) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || 'The visit could not be saved');

@@ -141,9 +141,11 @@ try {
   await page.locator('#food-value').filter({ hasText: '92%' }).waitFor();
   assert.equal(app.store.list('visits').length, 0);
   await page.locator('[data-scenario="water"]').click();
+  await page.locator('#water-value').filter({ hasText: '84 / 100' }).waitFor();
   assert.equal(await page.locator('body').evaluate(body => body.classList.contains('flooding') && body.classList.contains('raining')), true);
   await page.screenshot({ path: 'test-results/colony-storm-desktop.png', fullPage: true });
   await page.locator('[data-scenario="offline"]').click();
+  await page.locator('#food-value').filter({ hasText: /^—$/ }).waitFor();
   assert.equal(await page.locator('#food-value').innerText(), '—');
   await page.locator('#care-action').click();
   await page.locator('#food-value').filter({ hasText: '72%' }).waitFor();
@@ -152,6 +154,7 @@ try {
   await page.locator('#tour-next').click();
   await page.locator('#food-value').filter({ hasText: '92%' }).waitFor();
   await page.locator('#tour-next').click();
+  await page.locator('#water-value').filter({ hasText: '84 / 100' }).waitFor();
   assert.equal(await page.locator('#water-value').innerText(), '84 / 100');
   await page.locator('#tour-next').click();
   await page.getByRole('dialog').waitFor();
@@ -160,7 +163,7 @@ try {
   await page.locator('#visit-submit').click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert.match(await page.locator('#care-timeline').innerText(), /demo visit/);
-  assert.equal(app.store.list('visits').length, 0); // Preview visit never writes real care data.
+  assert.equal(app.store.list('visits').length, 0); // Exercise visits stay separate from field-workspace data.
   assert.equal(await page.locator('#save-reading').isDisabled(), true);
   await page.locator('[data-scenario="calm"]').click();
   await page.setViewportSize({ width: 390, height: 844 });
