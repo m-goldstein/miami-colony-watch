@@ -2,6 +2,7 @@ import { SerialConnection } from './serial-connection.js';
 import { workspacePacket } from './serial-protocol.js';
 import { scenarios, demoReading, careState } from './colony-demo.js';
 import { ColonyMap } from './colony-map.js';
+import { ColonyPlanning } from './colony-planning.js';
 
 const el = id => document.getElementById(id);
 const text = (id, value) => { el(id).textContent = value; };
@@ -14,6 +15,9 @@ let bootId = sessionId(), previousSequence = null, saving = false, startupMessag
 let workspace = null, catsSignature = '', toastTimer, tourStep = null, visitTarget = null, visitSaving = false;
 const demo = { scenario: 'calm', history: [], latest: null, events: [], sequence: 0 };
 const colonyMap = new ColonyMap();
+const planning = new ColonyPlanning({ notify, onSaved: (colonyId, plan) => {
+  const colony = workspace?.colonies.find(c => c.id === colonyId); if (colony) colony.preparedness = plan;
+} });
 for (let i = 0; i < 8; i++) {
   const reading = demoReading('calm', demo.sequence++);
   reading.foodPercent += 7 - i; reading.sonarDistanceCm = +(30 - reading.foodPercent * 0.25).toFixed(1);
@@ -37,7 +41,7 @@ function liveFresh() { return connection.state === 'connected' && latest && Date
 function active() { return mode === 'demo' ? { latest: demo.latest, fresh: scenarios[demo.scenario].online, history: demo.history } : { latest, fresh: !!liveFresh(), history }; }
 function selectedStation() { return workspace?.devices.find(d => d.id === el('station-id').value && !d.demo) || null; }
 function activeColony() {
-  return mode === 'demo' ? workspace?.colonies.find(c => c.demo) : workspace?.colonies.find(c => c.id === selectedStation()?.colonyId);
+  return mode === 'demo' ? workspace?.colonies.find(c => c.demo && c.name === 'South Point Park') || workspace?.colonies.find(c => c.demo) : workspace?.colonies.find(c => c.id === selectedStation()?.colonyId);
 }
 function setMode(value) {
   mode = value; catsSignature = '';
@@ -134,7 +138,7 @@ function render() {
   text('water-note', water == null ? 'A fresh probe reading helps identify local standing water.' : water >= 60 ? 'The probe is wet. Check the site when access is safe.' : 'A heads-up if standing water reaches the probe. This is not a flood all-clear.');
   el('water-level').style.height = `${water || 0}%`; el('water-meter').style.width = `${water || 0}%`;
   text('water-raw', data ? `Probe A2: ${data.waterAnalog} · index, not depth` : 'Wetness index · not water depth');
-  const colony = activeColony(); text('colony-location', mode === 'demo' ? `${colony?.name || 'Mangrove Mews'} · Miami demo colony` : colony ? `${colony.name} · linked station` : 'Your colony · live station');
+  const colony = activeColony(); text('colony-location', mode === 'demo' ? `${colony?.name || 'South Point Park'} · example colony` : colony ? `${colony.name} · linked station` : 'Your colony · live station');
   text('scene-badge', care.badge); text('care-badge', care.badge.toUpperCase()); text('care-title', care.title); text('care-detail', care.detail);
   el('care').dataset.kind = care.kind;
   text('care-action', mode === 'demo' && care.kind === 'food' ? 'Refill demo hopper →' : mode === 'demo' && care.kind === 'offline' ? 'Restore demo connection →' : care.action + ' →');
@@ -152,10 +156,12 @@ function render() {
   el('tour-progress').hidden = tourStep === null;
   if (tourStep !== null) {
     text('tour-step', `${tourStep + 1} / 4`);
-    text('tour-description', ['A low reserve is a reason to plan a refill, before the next feeding visit.', 'A demo refill changes the reserve reading. It does not claim the cats ate.', 'Rain and a wet base call for a shelter and access check, when safe.', 'Record the caregiver visit. Notes and TNVR follow-up make the picture complete.'][tourStep]);
+    text('tour-description', ['A fictional storm outlook gives the South Point Park team a head start. The Arduino’s low-food signal helps prioritize a refill.', 'The demo reserve is topped up. Now confirm the caregiver, pack supplies, and check the shelter before conditions worsen.', 'The rain plate and station-base probe are wet. These local signals call for a check when official guidance and access allow.', 'Record the care visit and save the colony’s readiness plan below. The next caregiver gets a clear handoff.'][tourStep]);
     text('tour-next', tourStep === 3 ? 'Finish demo ✓' : 'Next moment →');
   }
   renderCats(); renderTimeline(); colonyMap.update(workspace, mode);
+  planning.update({ mode, colony, reading: current.latest?.reading, receivedAt: current.latest?.at, fresh: current.fresh });
+  text('edge-colony-label', colony?.name || (mode === 'demo' ? 'South Point Park' : 'YOUR LINKED COLONY'));
 }
 function drawChart() {
   const points = active().history, max = Math.max(40, ...points.map(p => p.reading.sonarDistanceCm || 0)) * 1.05;
@@ -239,7 +245,7 @@ el('disconnect').addEventListener('click', () => { void connection.disconnect();
 el('sample').addEventListener('click', () => { if (mode === 'live') void connection.send('SAMPLE').then(() => log('sent', 'SAMPLE')).catch(error => log('error', error.message)); });
 el('stream-interval').addEventListener('change', () => { if (mode === 'live' && connection.state === 'connected') void connection.setIntervalMs(Number(el('stream-interval').value)).catch(error => log('error', error.message)); });
 document.querySelectorAll('[data-scenario]').forEach(button => button.addEventListener('click', () => applyScenario(button.dataset.scenario)));
-el('start-tour').addEventListener('click', () => { tourStep = 0; applyScenario('food', false); el('demo-playground').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+el('start-tour').addEventListener('click', () => { tourStep = 0; applyScenario('food', false); planning.setScenario('storm'); el('demo-playground').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
 el('tour-close').addEventListener('click', () => { tourStep = null; render(); });
 el('tour-next').addEventListener('click', () => {
   if (tourStep === 0) { tourStep = 1; applyScenario('refill', false); }

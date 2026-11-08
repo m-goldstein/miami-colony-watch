@@ -73,7 +73,7 @@ try {
   assert.equal(await page.locator('#map-expand').getAttribute('aria-expanded'), 'true');
   assert.ok(await page.locator('.map-canvas').evaluate(map => map.getBoundingClientRect().height) > previewHeight);
   assert.equal(await page.locator('.colony-map-pin').count(), 6);
-  assert.equal(await page.locator('#map-colony-name').innerText(), 'Mangrove Mews');
+  assert.equal(await page.locator('#map-colony-name').innerText(), 'South Point Park');
   assert.equal(await page.locator('#map-food').innerText(), '18%');
   await page.getByRole('button', { name: 'View Banyan Corner', exact: true }).click();
   assert.equal(await page.locator('#map-colony-name').innerText(), 'Banyan Corner');
@@ -91,7 +91,7 @@ try {
   assert.equal(await page.locator('#map-colony-list button').count(), 1);
   assert.equal(await page.locator('#map-colony-name').innerText(), 'Railway Garden');
   await page.locator('[data-map-filter="food"]').click();
-  assert.equal(await page.locator('#map-colony-name').innerText(), 'Mangrove Mews');
+  assert.equal(await page.locator('#map-colony-name').innerText(), 'South Point Park');
   await page.locator('[data-map-filter="offline"]').click();
   assert.equal(await page.locator('#map-colony-name').innerText(), 'Orchid Landing');
   assert.equal(await page.locator('#map-food').innerText(), 'Unknown');
@@ -107,7 +107,7 @@ try {
   assert.equal(await page.locator('#map-expand').getAttribute('aria-expanded'), 'false');
   assert.equal(await page.locator('#map-filters-panel').isVisible(), false);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'map-expand');
-  assert.equal(await page.locator('#map-colony-name').innerText(), 'Mangrove Mews');
+  assert.equal(await page.locator('#map-colony-name').innerText(), 'South Point Park');
   await page.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: 'test-results/colony-home-desktop.png', fullPage: true });
   await page.screenshot({ path: 'test-results/colony-dashboard-viewport.png' });

@@ -29,7 +29,7 @@ try {
   await page.locator('.modal select').nth(1).selectOption('no-echo');
   await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
   await page.locator('.modal').waitFor({ state: 'hidden' });
-  await page.locator('.pulse-panel tbody tr').filter({ hasText: 'Mangrove Mews' }).getByText('Unknown', { exact: true }).waitFor();
+  await page.locator('.pulse-panel tbody tr').filter({ hasText: 'South Point Park' }).getByText('Unknown', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Log a visit', exact: true }).click();
   await page.getByLabel('Caregiver name', { exact: true }).fill('Browser caregiver');
   await page.getByLabel('Cats actually seen').fill('7');

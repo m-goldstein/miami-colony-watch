@@ -4,11 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { Store } from './store.js';
 import { seedDemo } from './seed.js';
+import { createWeatherService } from './weather.js';
 import { id, hashKey, text, number, fail, calibration, validateReading, measurements, deviceView, evaluateDevice, DEFAULT_CALIBRATION } from './domain.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const stamp = () => new Date().toISOString();
-export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), demoMode = true, clientDirectory = 'public' } = {}) {
+export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), demoMode = true, clientDirectory = 'public', weatherService = createWeatherService() } = {}) {
   const app = express(), store = new Store(dbPath);
   if (demoMode) seedDemo(store);
   app.disable('x-powered-by');
@@ -78,6 +79,10 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
   }
   app.get('/api/health', (req, res) => res.json({ ok: true, service: 'colony-watch', storage: 'sqlite-local', demoMode, time: stamp() }));
   app.get('/api/state', (req, res) => res.json(snapshot()));
+  app.get('/api/weather/south-point', async (req, res) => {
+    try { res.json(await weatherService()); }
+    catch { res.status(503).json({ error: 'The NWS outlook could not be refreshed. Check NWS Miami for current weather and alerts.' }); }
+  });
   app.post('/api/readings', (req, res) => {
     const device = requireRecord('devices', text(req.body.deviceId, 'deviceId', 80));
     const token = req.get('Authorization')?.replace(/^Bearer /, '') || '';
@@ -91,6 +96,20 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
       neighborhood: text(data.neighborhood, 'neighborhood', 70), caretaker: text(data.caretaker, 'caretaker', 70),
       notes: text(data.notes || '', 'notes', 1500, false), stormPlan: text(data.stormPlan || '', 'stormPlan', 1000, false),
       sitePermission: data.sitePermission === true, demo: false, mapX: 45, mapY: 55, lastVisitAt: null }));
+  });
+  app.patch('/api/colonies/:id/preparedness', (req, res) => {
+    const colony = requireRecord('colonies', req.params.id), body = req.body;
+    const checklist = {};
+    for (const key of ['backup', 'supplies', 'shelter', 'access', 'records']) {
+      if (typeof body.checklist?.[key] !== 'boolean') fail('Complete the preparedness checklist fields');
+      checklist[key] = body.checklist[key];
+    }
+    const preparedness = { checklist, lead: text(body.lead, 'care lead', 70, false), backup: text(body.backup, 'backup caregiver', 70, false),
+      checkIn: text(body.checkIn, 'next check-in', 70, false), notes: text(body.notes, 'handoff notes', 1500, false),
+      cats: number(body.cats, 'cats to plan for', 0, 500, true), days: number(body.days, 'supply days', 1, 14, true),
+      grams: number(body.grams, 'daily food per cat', 1, 1000), onHandKg: number(body.onHandKg, 'packed food', 0, 1000), updatedAt: stamp() };
+    store.put('colonies', { ...colony, preparedness });
+    res.json(preparedness);
   });
   function deviceConfig(body, previous = {}) {
     const colonyId = text(body.colonyId, 'colonyId', 80);

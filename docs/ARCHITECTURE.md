@@ -97,8 +97,10 @@ Each active sensor task is deduplicated per device/type. Assignment and completi
 | --- | --- |
 | `GET /api/health` | Local process/storage mode/time health response |
 | `GET /api/state` | Joined workspace snapshot, safe device metadata, and recent histories |
+| `GET /api/weather/south-point` | NWS forecast/alerts for the South Beach example area; 10-minute process cache, explicit 503 on forecast failure |
 | `POST /api/readings` | Authenticated station ingestion; `Authorization: Bearer DEVICE_API_KEY` |
 | `POST /api/colonies` | Create a colony with neighborhood/caregiver/plan fields |
+| `PATCH /api/colonies/:id/preparedness` | Validate and persist checklist, caregivers, check-in, handoff notes, and food packing inputs on the colony |
 | `POST /api/devices` | Provision a station; return its one-time secret |
 | `PATCH /api/devices/:id` | Calibration, lifecycle, permission, bench, enclosure checks |
 | `PATCH /api/tasks/:id` | Open/assigned/completed and caregiver assignment |
@@ -111,6 +113,10 @@ Each active sensor task is deduplicated per device/type. Assignment and completi
 | `GET /firmware/colony_monitor.ino` | Download the matching monitoring sketch |
 
 Writes use JSON objects, at most 32KB. Validation failures are 400; invalid station credentials 401; disallowed source/origin or disabled demo actions 403; missing records 404; conflicts 409; non-JSON writes 415. Both firmware/gateway and API validate data. Secrets are omitted from state/report responses.
+
+`server/weather.js` resolves the NWS point to its grid forecast and requests active point alerts independently. It bounds each upstream request, coalesces simultaneous refreshes, caches successful responses for ten minutes, and exposes `alertsAvailable: false` if alert retrieval fails. It never substitutes an invented forecast for a failed request. `public/colony-planning.js` keeps explicit fictional exercises separate from NWS weather and the sensor stream. The weather location is fixed to the South Beach example area rather than inferred from schematic map coordinates.
+
+Preparedness is stored as a nested `preparedness` object on the colony, with `updatedAt`. Saving does not alter telemetry, visits, tasks, or census. Food weight comes exclusively from caregiver-entered quantities; hopper percentages cannot produce a weight or days-remaining claim. Client downloads use the current form and labeled current sensor/outlook context, with no upload or notification service.
 
 ## Trust and privacy boundary
 

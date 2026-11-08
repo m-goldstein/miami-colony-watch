@@ -1,0 +1,83 @@
+import { chromium } from '@playwright/test';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import assert from 'node:assert/strict';
+import { createApp } from '../server/app.js';
+const now = new Date().toISOString();
+const context = createApp({ dbPath: ':memory:', weatherService: async () => ({ source: 'National Weather Service', updatedAt: now, retrievedAt: now,
+  periods: [{ name: 'Tonight', summary: 'Showers', rainChance: 70, temperature: 77, temperatureUnit: 'F', wind: '10 mph' }], alerts: [], alertsAvailable: false }) });
+const server = await new Promise(resolve => { const s = context.app.listen(0, '127.0.0.1', () => resolve(s)); });
+const base = `http://127.0.0.1:${server.address().port}`;
+const cache = join(homedir(), '.cache/ms-playwright');
+const cached = existsSync(cache) ? readdirSync(cache).filter(p => /^chromium-\d+$/.test(p)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1])).map(p => join(cache, p, 'chrome-linux64/chrome')).find(existsSync) : null;
+const executablePath = process.env.BROWSER_PATH || (existsSync(chromium.executablePath()) ? undefined : cached);
+let browser;
+try {
+  browser = await chromium.launch({ headless: true, executablePath, args: ['--no-sandbox'] });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto(base, { waitUntil: 'networkidle' });
+  assert.equal(await page.locator('h1').innerText(), 'A little foresight.\nA safer colony.');
+  await page.locator('#focus-name').filter({ hasText: 'South Point Park' }).waitFor();
+  await page.locator('#plan-lead').filter({ visible: true }).waitFor();
+  assert.equal(await page.locator('#plan-lead').inputValue(), 'Elena');
+  await page.locator('[data-outlook="storm"]').click();
+  assert.match(await page.locator('#outlook-description').innerText(), /not a real forecast/);
+  assert.equal(await page.locator('#food-value').innerText(), '72%');
+  await page.getByLabel('A backup caregiver is confirmed', { exact: false }).check();
+  await page.getByLabel('Dry food & clean water are packed', { exact: false }).check();
+  await page.locator('#plan-backup').fill('Marco');
+  await page.locator('#plan-check-in').fill('Tomorrow at 8 am, if access is safe');
+  await page.locator('#plan-notes').fill('Collect sealed supplies. Check the raised shelter.');
+  await page.locator('#plan-on-hand').fill('1');
+  assert.equal(await page.locator('#readiness-count').innerText(), '2 / 5');
+  assert.equal(await page.locator('#supply-total').innerText(), '2.52 kg');
+  assert.equal(await page.locator('#supply-gap').innerText(), '1.52 kg still to pack');
+  await page.locator('#save-plan').click();
+  await page.locator('#plan-save-status').filter({ hasText: /Saved .*South Point Park/ }).waitFor();
+  const saved = context.store.get('colonies', 'col-mangrove').preparedness;
+  assert.equal(saved.backup, 'Marco'); assert.equal(saved.checklist.backup, true);
+  assert.equal(context.store.list('visits').length, 0);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('#plan-backup').filter({ visible: true }).waitFor();
+  assert.equal(await page.locator('#plan-backup').inputValue(), 'Marco');
+  assert.equal(await page.locator('#readiness-count').innerText(), '2 / 5');
+  const downloadPromise = page.waitForEvent('download'); await page.locator('#download-brief').click();
+  const download = await downloadPromise, brief = readFileSync(await download.path(), 'utf8');
+  assert.match(brief, /South Point Park/); assert.match(brief, /Fictional demo colony/); assert.match(brief, /Backup caregiver: Marco/); assert.match(brief, /NOT a live forecast/);
+  await page.locator('#refresh-outlook').click();
+  await page.locator('#outlook-source').filter({ hasText: 'NATIONAL WEATHER SERVICE' }).waitFor();
+  assert.match(await page.locator('#forecast-periods').innerText(), /70% rain/);
+  assert.match(await page.locator('#outlook-alerts').innerText(), /Alert feed unavailable/);
+  await page.locator('[data-outlook="storm"]').click();
+  assert.match(await page.locator('#outlook-source').innerText(), /ILLUSTRATIVE/);
+  assert.equal(await page.locator('#readiness-count').innerText(), '2 / 5');
+  mkdirSync('test-results', { recursive: true });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: 'test-results/planning-desktop.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/planning-viewport.png' });
+  await page.locator('#outlook').screenshot({ path: 'test-results/weather-outlook.png' });
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    assert.equal(await page.evaluate(() => document.body.scrollWidth <= innerWidth), true, `overflow at ${width}px`);
+    await page.locator('#plan-on-hand').fill('3');
+    assert.match(await page.locator('#supply-gap').innerText(), /target covered/);
+    if (width === 768) {
+      await page.locator('.mobile-menu summary').click();
+      assert.equal(await page.locator('.mobile-menu nav').isVisible(), true);
+      await page.locator('.mobile-menu a[href="#preparedness"]').click();
+      assert.equal(await page.locator('.mobile-menu').evaluate(menu => menu.open), false);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 }); await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: 'test-results/planning-mobile.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/planning-mobile-viewport.png' });
+  await page.locator('#mode-live').click();
+  assert.match(await page.locator('#outlook-source').innerText(), /NOT LOADED/);
+  assert.equal(await page.locator('#outlook-scenarios').isVisible(), false);
+  assert.equal(await page.locator('#save-plan').isDisabled(), true);
+  assert.equal(await page.locator('#food-value').innerText(), '—');
+  assert.deepEqual(errors, []);
+  console.log('PASS: South Point Park, weather scenarios independent of sensors, plan → API → SQLite → reload, supply shortfall, care brief contents, NWS response → UI, unavailable alerts, 320–1440px layouts, and physical/demo boundaries.');
+} finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); context.store.close(); }

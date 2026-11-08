@@ -1,6 +1,6 @@
 # Colony Watch — Miami field operations
 
-A local **Node.js + AngularJS 1.8** workspace that connects community-cat care to a real Arduino edge station. It combines approximate food-reserve measurements, local wetness, caregiver visits, individual cat/TNVR records, action queues, and device deployment records.
+A local **Node.js + AngularJS 1.8** workspace that connects community-cat care to an Arduino edge station. The homepage tells the story through **South Point Park**, a fictional example colony in South Beach: sense food and wetness on the ground, look ahead at area weather, and prepare a shared care plan. The field workspace retains caregiver visits, cat/TNVR records, action queues, and device deployment records.
 
 The original component-test sketch remains unchanged in the neighboring `pins_layout/` directory. Monitoring firmware lives in this project's `firmware/colony_monitor/` directory.
 
@@ -22,13 +22,17 @@ The default demonstration contains **six fictional colonies, 80 individually rec
 
 ## Try the colony-care demo
 
-The interface follows the supplied `ui-inspo/catssss/` and newer `ui-inspo/` references: ivory, teal, coral, Miami cat artwork, and mobile navigation. A compact map replaces the welcome header; **Expand map** opens its larger view and controls in place. The three sensor cards share the width equally, followed by a two-thirds station illustration and one-third care action. Hardware readings follow the map preview, with the population-management mission below. See [design and asset notes](docs/UI_DESIGN.md).
+The interface follows the supplied `ui-inspo/catssss/` and newer `ui-inspo/` references: warm ivory, teal, coral, Miami cat artwork, and mobile navigation. The opening introduces climate preparedness, then focuses on South Point Park and its Arduino. Three sensor cards lead to the illustrated edge station, weather outlook, and practical care plan. The compact colony network and population-management mission follow below. See [design and asset notes](docs/UI_DESIGN.md).
+
+**Weather outlook** includes clearly fictional Everyday care, Rain ahead, and Storm prep exercises. **Get NWS outlook** requests the real South Beach area forecast and active alerts through the local server. It needs internet access but no API key; forecasts are cached for ten minutes and carry issue/retrieval timestamps. Missing rain probabilities and an unavailable alert feed remain unknown. The outlook is area-level weather, not a reading or forecast from the Arduino, and does not automatically complete readiness tasks. Live Arduino mode hides the fictional outlook controls.
+
+**Care plan** saves a five-item readiness checklist, lead and backup caregiver, next check-in, handoff notes, and a food packing calculation to the selected colony in SQLite. Demo plans stay on demo records; real plans require linking a physical station. Portions and packed weight are entered by the caregiver, never inferred from hopper percentage. **Download care brief** produces a text handoff with the current form, source-labeled sensor snapshot, outlook, people, checklist, and supply shortfall. Unsaved form changes are identified in the brief. Nothing is messaged to anyone.
 
 The **colony map** shows saved local records separately from the USB panel. Select a pin or colony entry, filter for care checks, and refresh records. Positions are explicitly schematic rather than GPS locations. **Care for this colony** opens the workspace with that colony selected for caregiver visits. Demo and physical records remain separate.
 
-The headline pairs the **300,000–400,000** free-roaming-cat range with a **Help manage a colony** action leading to the census. The figure is attributed to **Miami-Dade Animal Services' February 2023 estimate**, and is scoped to Miami-Dade County rather than a current City of Miami census. [County source](https://www.miamidade.gov/global/release.page?Mduid_release=rel1676560952008934).
+The community mission pairs the **300,000–400,000** free-roaming-cat range with a **Help manage a colony** action leading to the census. The figure is attributed to **Miami-Dade Animal Services' February 2023 estimate**, and is scoped to Miami-Dade County rather than a current City of Miami census. [County source](https://www.miamidade.gov/global/release.page?Mduid_release=rel1676560952008934).
 
-- Click **Try the colony demo** for a four-step walkthrough: low food → refill → wet-weather check → care visit.
+- Click **Play the care demo** for a four-step walkthrough: fictional storm outlook and low food → refill/preparation → wet-weather check → care visit and readiness plan.
 - The scenario buttons also let you explore a normal day, low reserve, rain, standing water, or an offline station individually.
 - Food reserve, rain around the shelter, water at the station base, and the next suggested caregiver action update together. No cat-health or cat-presence inference is made.
 - **Refill demo hopper** updates only the preview. **Save demo visit** records a local preview note, without creating workspace visits or changing real station records.
@@ -60,6 +64,7 @@ The browser page clears current gauges when USB disconnects or measurements beco
 - **Gateway:** serial reconnection, timestamping, a disk-backed outbox, retry/backoff, and Arduino acknowledgements after the service accepts a packet.
 - **Direct USB console:** browser port selection, live sensor cards/history, sample/rate commands, raw frame validation, downloads, and optional manual recording to the workspace.
 - **Research and reporting:** a community brief, a cited research document, and a downloadable colony/TNVR/visit summary CSV.
+- **Weather preparedness:** optional NWS South Beach outlook, illustrative storm exercises, persistent colony readiness/people/supply plans, and downloadable care handoffs.
 
 No SMS/email is sent, no photos are analyzed, and no chat account is accessed. The provided kit has no dispensing actuator; this system never automatically dispenses food or operates a trap.
 

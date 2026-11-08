@@ -1,10 +1,15 @@
 import { DEFAULT_CALIBRATION, hashKey } from './domain.js';
 
 export function seedDemo(store) {
-  if (store.list('colonies').length) return;
+  if (store.list('colonies').length) {
+    // Retain the stable demo identity, visits, and hardware history on older local installs.
+    const old = store.get('colonies', 'col-mangrove');
+    if (old?.demo && old.name === 'Mangrove Mews') store.put('colonies', { ...old, name: 'South Point Park', neighborhood: 'South Beach', mapX: 78, mapY: 57 });
+    return;
+  }
   const now = Date.now();
   const specs = [
-    ['mangrove', 'Mangrove Mews', 'Wynwood', 'Elena', 14, 11, 49, 34, 18, false, 130],
+    ['mangrove', 'South Point Park', 'South Beach', 'Elena', 14, 11, 78, 57, 18, false, 130],
     ['banyan', 'Banyan Corner', 'Little Havana', 'Marco', 18, 15, 34, 51, 72, false, 100],
     ['rail', 'Railway Garden', 'Little Haiti', 'Lucía', 11, 7, 58, 21, 42, true, 690],
     ['palm', 'Palm Courtyard', 'Allapattah', 'Nico', 9, 8, 36, 29, 86, false, 95],
