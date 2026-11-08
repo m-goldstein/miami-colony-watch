@@ -105,3 +105,23 @@ test('version-two exercises acquire an empty concept without losing temperature 
   try { assert.equal((await hardware.request({ action: 'dispense', requestId: 'never', targetGrams: 10 })).status, 403); }
   finally { await hardware.close(); }
 });
+
+test('proposed humidity scenarios stay simulated, retain offline packets, and reject invalid scenarios atomically', async () => {
+  const f = await fixture();
+  try {
+    const before = await f.read();
+    await f.request({ action: 'wireless', mode: 'ble', hubOnline: false });
+    for (const [scenario, humidityPercent, temperatureC] of [['calm', 56, 26], ['rain', 83, 24], ['humid', 92, 29]]) {
+      const result = await f.request({ action: 'climate', scenario });
+      assert.equal(result.status, 200);
+      assert.deepEqual(result.data.edgeConcept.climate, { scenario, humidityPercent, temperatureC, simulated: true });
+    }
+    const saved = await f.read(); assert.equal(conceptSummary(saved.edgeConcept).queued, 3);
+    assert.deepEqual(saved.station, before.station); assert.deepEqual(saved.readings, before.readings);
+    assert.equal((await f.request({ action: 'climate', scenario: '__proto__' })).status, 400);
+    assert.deepEqual((await f.read()).edgeConcept, saved.edgeConcept);
+    await f.request({ action: 'wireless', mode: 'ble', hubOnline: true }); await f.request({ action: 'sync' });
+    const replay = (await f.request({ action: 'replay' })).data;
+    assert.equal(conceptSummary(replay.edgeConcept).acknowledged, 3);
+  } finally { await f.close(); }
+});

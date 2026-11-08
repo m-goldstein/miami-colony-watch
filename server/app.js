@@ -6,11 +6,12 @@ import { Store } from './store.js';
 import { seedDemo } from './seed.js';
 import { createWeatherService } from './weather.js';
 import { careDemoRouter } from './care-demo.js';
+import { createCatVisionService } from './cat-vision.js';
 import { id, hashKey, text, number, fail, calibration, validateReading, measurements, deviceView, evaluateDevice, DEFAULT_CALIBRATION } from './domain.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const stamp = () => new Date().toISOString();
-export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), demoMode = true, clientDirectory = 'public', weatherService = createWeatherService() } = {}) {
+export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), demoMode = true, clientDirectory = 'public', weatherService = createWeatherService(), catVisionService = createCatVisionService() } = {}) {
   const app = express(), store = new Store(dbPath);
   if (demoMode) seedDemo(store);
   app.disable('x-powered-by');
@@ -27,7 +28,13 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
     }
     next();
   });
-  app.use(express.json({ limit: '32kb' }));
+  // Only the two care forms accept a bounded, browser-prepared photo payload.
+  const photoJson = express.json({ limit: '750kb' }), normalJson = express.json({ limit: '32kb' });
+  app.use((req, res, next) => {
+    const photoForm = (req.method === 'POST' && req.path === '/api/care-demo/updates') ||
+      (req.method === 'PATCH' && /^\/api\/care-demo\/tasks\/[^/]+$/.test(req.path));
+    return (photoForm ? photoJson : normalJson)(req, res, next);
+  });
   app.use('/api', (req, res, next) => {
     if (['POST', 'PATCH', 'PUT'].includes(req.method) && (!req.body || Array.isArray(req.body) || typeof req.body !== 'object')) return res.status(400).json({ error: 'A JSON object is required' });
     next();
@@ -80,7 +87,7 @@ export function createApp({ dbPath = resolve(root, 'data/colony-watch.sqlite'), 
   }
   app.get('/api/health', (req, res) => res.json({ ok: true, service: 'colony-watch', storage: 'sqlite-local', demoMode, time: stamp() }));
   app.get('/api/state', (req, res) => res.json(snapshot()));
-  app.use('/api/care-demo', careDemoRouter(store, demoMode));
+  app.use('/api/care-demo', careDemoRouter(store, demoMode, catVisionService));
   app.get('/api/weather/south-point', async (req, res) => {
     try { res.json(await weatherService()); }
     catch { res.status(503).json({ error: 'The NWS outlook could not be refreshed. Check NWS Miami for current weather and alerts.' }); }

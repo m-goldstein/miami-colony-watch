@@ -7,6 +7,7 @@ export function initialEdgeConcept(createdAt) {
   return { version: 1, simulated: true, clockMs: Date.parse(createdAt), reads: [], sessions: [], portions: [], events: [],
     bindings: { 'demo-chip-mango': { catId: 'example-cat-1', reviewer: 'Fictional baseline association' }, 'demo-chip-luna': { catId: 'example-cat-2', reviewer: 'Fictional baseline association' } },
     dispenser: { fault: null, lastDoseAt: null },
+    climate: { scenario: 'calm', humidityPercent: 56, temperatureC: 26, simulated: true },
     wireless: { mode: 'ble', hubOnline: true, nextSequence: 0, packets: [], lastBatch: [] } };
 }
 
@@ -56,6 +57,13 @@ export function applyEdgeConcept(state, body) {
     c.dispenser.fault = null; record('manual-inspection', { title: 'Manual inspection recorded in the exercise', reviewer });
   } else if (action === 'advance') {
     c.clockMs += 60000; record('clock-advanced', { title: 'Concept clock advanced by one minute' });
+  } else if (action === 'climate') {
+    const climates = { calm: [56, 26], rain: [83, 24], humid: [92, 29] };
+    if (!Object.hasOwn(climates, body.scenario)) fail('Choose a supported simulated climate');
+    const [humidityPercent, temperatureC] = climates[body.scenario];
+    c.climate = { scenario: body.scenario, humidityPercent, temperatureC, simulated: true };
+    queue('climate-preview', { ...c.climate });
+    record('climate-preview', { title: `Proposed climate probe: ${humidityPercent}% RH, ${temperatureC}°C · simulated ${body.scenario}` });
   } else if (action === 'wireless') {
     if (!['wifi', 'ble', 'lora'].includes(body.mode) || typeof body.hubOnline !== 'boolean') fail('Choose a radio mode and hub state');
     c.wireless.mode = body.mode; c.wireless.hubOnline = body.hubOnline;

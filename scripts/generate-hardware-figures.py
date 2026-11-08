@@ -17,6 +17,14 @@ def save(name,w,h,title,desc,body):
 # Figure 1. An annotated, deliberately non-routed board plan.
 b=label(40,36,'COLONYWATCH / EDGE NODE A',14,'#467360',700)+label(960,36,'CONCEPT • NOT FOR FABRICATION',11,'#8f8e6b',600,'end')
 b+=rect(110,75,680,520,'url(#pcb)',28,'#174e44')
+b+=rect(120,85,660,500,'none',21,'#579280')
+# Subtle plated signal lanes and labelled service pads; deliberately illustrative.
+for offset in (0,8,16):
+    b+=wire(f'159,{260+offset} 230,{260+offset} {265+offset},{295+offset} {265+offset},350 367,350','#4b9986',1.4)
+    b+=wire(f'{527+offset},123 {527+offset},175 {581+offset},175 {581+offset},210','#4b9986',1.4)
+    b+=wire(f'169,{529+offset} 330,{529+offset} {349+offset},{548+offset}','#4b9986',1.4)
+for x,y in ((172,282),(205,282),(541,176),(560,176),(580,349),(615,349),(728,483)):
+    b+=f'<circle cx="{x}" cy="{y}" r="3.5" fill="#cab979"/><circle cx="{x}" cy="{y}" r="1.3" fill="#174f43"/>'
 for x in (140,760):
     for y in (105,565): b+=f'<circle cx="{x}" cy="{y}" r="14" fill="#c9b878"/><circle cx="{x}" cy="{y}" r="7" fill="#f6f8ef"/>'
 for x in range(294,492,15):
@@ -42,6 +50,11 @@ b+=label(532,202,'USB / PROGRAM / TEST',10,'#c1d9bd',600)
 for x,y in ((516,312),(532,312),(548,312),(564,312),(580,312)):
     b+=f'<circle cx="{x}" cy="{y}" r="5" fill="#d3c180"/>'
 b+=label(511,339,'TEST PADS',10,'#c9dbb9',600)
+b+=label(183,330,'REV A / CW-01',12,'#e4e9cd',700)+label(183,348,'2L  •  MODULAR CARRIER',8,'#c9d9bb',500)
+for x,y,name in ((551,265,'R1'),(574,265,'R2'),(595,265,'C1'),(178,359,'C2'),(207,359,'C3')):
+    b+=rect(x,y,14,7,'#243f38',1)+rect(x,y,3,7,'#cabd8e',1)+rect(x+11,y,3,7,'#cabd8e',1)+label(x+7,y-4,name,6,'#dce7c8',500,'middle')
+b+=f'<circle cx="735" cy="207" r="8" fill="#184d41"/><circle cx="735" cy="207" r="4" fill="#c4e68c"/>'+label(722,231,'STATUS',8,'#dce7c8',500,'middle')
+b+=label(562,490,'DNP WHEN NOT NEEDED',7,'#e4e9cd',600)
 b+=wire('247,184 271,184 271,253 295,253','#9ecac1',3)+wire('488,235 610,235 610,157 650,157','#9ecac1',3)
 b+=wire('488,268 630,268 630,299 660,299','#9ecac1',3)+wire('365,445 395,445 395,347 415,347 415,328','#d2b978',5)
 b+=wire('363,468 379,468 379,574 576,574 576,547 593,547','#d2b978',5)+wire('451,528 451,365 467,365 467,328','#a8bda2',2)

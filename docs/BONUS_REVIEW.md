@@ -27,7 +27,7 @@ Open http://127.0.0.1:3001. This command uses this worktree's `data/review.sqlit
 7. Review the report date range, follow the source links, and download the evidence CSV. Reload the page: reviews, aliases, care assignments, completed visits, sensor exercise state, plans, and pilot assumptions persist.
 8. **Reset exercise** clears only the isolated fictional exercise after a clear confirmation. Existing workspace/physical-device records remain unchanged.
 
-The same form also accepts new fictional phone notes without a connected Arduino. Suggestions in the sample batch are prepared annotations, not results of live AI extraction or automatic photo matching. The software was built with Codex; runtime AI, chat integrations, and hosted multi-user access are not claimed.
+The same form also accepts new fictional phone notes and cat photo uploads without a connected Arduino. Re-upload a photo to see its earlier source, select the same cat, then use **Same issue already reported?** to attach the report to that cat’s open ticket. The count stays one identity and one ticket, with both source reports preserved. Caregiver follow-ups also accept a photo when assigned or completed. Suggestions in the sample batch are prepared annotations, not results of live AI extraction or automatic photo matching. Optional runtime OpenAI vision now analyzes uploaded photos and proposes existing-cat matches. Its suggestions remain separate from human identity decisions. Chat integrations and hosted multi-user access are not implemented.
 
 ## Nonprofit fit
 
@@ -59,7 +59,7 @@ The rescue browser test follows sample import, two sightings/one identity, a new
 
 Main commit `c524a90` adds the DHT11 temperature sensor on D7, firmware sampling and a fifth OLED page, USB/gateway/API transport, current measurements, map filtering, shared thresholds, and heat/cold/freezing inspection tasks. These changes are merged, not independently reimplemented. The persistent rescue exercise reuses the shared scenario definitions and alert copy. Existing exercise records migrate without resetting their reviews; historical samples without a temperature value remain unknown.
 
-The main implementation does not read or report DHT11 humidity. The review station and evidence detail state that limitation explicitly. No humidity measurement or heat index is invented. Firmware behavior and hardware guidance remain identical to the merged main commit.
+The main implementation does not read or report DHT11 humidity. The review station and evidence detail state that limitation explicitly. The next-device habitat now offers explicitly simulated humidity scenarios for its proposed SHTC3 probe. These stay in the concept event log and never become Arduino measurements or heat-index claims. Firmware behavior and hardware guidance remain identical to the merged main commit.
 
 ## Submission
 

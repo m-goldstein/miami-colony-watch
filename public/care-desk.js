@@ -1,5 +1,7 @@
 import { temperatureLabel, temperatureState, TEMPERATURE_ALERTS } from './temperature.js';
 import { EdgeConceptUI } from './edge-concept-ui.js';
+import { PhotoPicker, ticketSources, photoGallery } from './care-photos.js';
+import { CatVisionUI } from './cat-vision-ui.js';
 
 const el = id => document.getElementById(id);
 const put = (id, value) => { el(id).textContent = value; };
@@ -16,6 +18,11 @@ export class CareDesk {
     this.notify = notify; this.onChange = onChange; this.onStation = onStation; this.state = null; this.selected = null; this.taskId = null;
     this.queue = Promise.resolve(); this.stationSignature = ''; this.reportRequest = 0;
     this.edgeUI = new EdgeConceptUI({ act: body => this.change('/concept', body), notify });
+    this.fieldPhoto = new PhotoPicker('field'); this.taskPhoto = new PhotoPicker('task');
+    this.vision = new CatVisionUI({ getState: () => this.state, request: (path, body) => this.request(path, body, 'POST', 60000),
+      renderTasks: () => { if (this.state) this.renderNeeds(); },
+      selectCat: catId => { el('review-decision').value = 'existing'; el('review-cat').value = catId; this.reviewFields(); el('review-existing-fields').scrollIntoView({ behavior: 'smooth', block: 'center' }); },
+      useDescription: description => { el('review-decision').value = 'new'; el('review-new-description').value = description.slice(0, 300); this.reviewFields(); el('review-new-name').focus(); } });
     const today = new Date(), week = new Date(Date.now() - 6 * 86400000);
     el('report-from').value = week.toISOString().slice(0, 10); el('report-to').value = today.toISOString().slice(0, 10);
     el('review-procedure-date').max = today.toISOString().slice(0, 10);
@@ -26,8 +33,9 @@ export class CareDesk {
     el('followup-filter').addEventListener('change', () => this.renderNeeds());
     el('rescue-inbox-list').addEventListener('click', event => { const button = event.target.closest('[data-update]'); if (button) this.selectUpdate(button.dataset.update); });
     el('review-decision').addEventListener('change', () => this.reviewFields());
+    el('review-cat').addEventListener('change', () => this.reviewTickets());
     el('source-review-form').addEventListener('submit', event => { event.preventDefault(); void this.confirmReview(); });
-    el('open-phone-update').addEventListener('click', () => { el('phone-update-form').reset(); el('phone-update-error').hidden = true; el('phone-update-dialog').showModal(); });
+    el('open-phone-update').addEventListener('click', () => { el('phone-update-form').reset(); this.fieldPhoto.reset(); this.vision.prepareForm('field'); el('phone-update-error').hidden = true; el('phone-update-dialog').showModal(); });
     el('phone-update-form').addEventListener('submit', event => { event.preventDefault(); void this.phoneUpdate(); });
     el('rescue-needs-list').addEventListener('click', event => {
       const task = event.target.closest('[data-followup]'), source = event.target.closest('[data-source]');
@@ -49,9 +57,9 @@ export class CareDesk {
     document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
     this.queue = this.refresh();
   }
-  async request(path = '', body, method = 'POST') {
+  async request(path = '', body, method = 'POST', timeoutMs = 6000) {
     const response = await fetch(`/api/care-demo${path}`, { method: body === undefined ? 'GET' : method,
-      ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), signal: AbortSignal.timeout(6000) });
+      ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), signal: AbortSignal.timeout(timeoutMs) });
     const result = await response.json(); if (!response.ok) throw new Error(result.error || 'The shared record could not be updated.'); return result;
   }
   async refresh() {
@@ -100,6 +108,7 @@ export class CareDesk {
     for (const update of updates) {
       const button = actionButton('', 'update', update.id, `inbox-update ${this.selected === update.id ? 'selected' : ''}`); button.setAttribute('aria-pressed', String(this.selected === update.id));
       const badge = node('span', `inbox-source-icon ${update.status}`, update.kind === 'photo' ? '▧' : update.kind === 'location' ? '⌖' : update.kind === 'document' ? '✓' : '✎');
+      if (update.attachment) { const img = node('img'); img.src = update.attachment; img.alt = ''; img.loading = 'lazy'; badge.replaceChildren(img); }
       const copy = node('span', 'inbox-update-copy'), top = node('span', 'inbox-update-top');
       top.append(node('b', '', update.author), node('small', '', update.status === 'pending' ? 'Needs review' : update.status === 'dismissed' ? 'Dismissed' : 'Reviewed ✓'));
       copy.append(top, node('span', 'inbox-update-excerpt', update.text), node('small', 'inbox-update-meta', `${update.kind} · ${dateLabel(update.observedAt)}`));
@@ -109,14 +118,22 @@ export class CareDesk {
   selectUpdate(id) { this.selected = id; this.renderInbox(); this.renderReview(); }
   renderReview() {
     const s = this.state, update = s?.updates.find(item => item.id === this.selected);
+    this.vision.renderReview(update);
     el('review-empty').hidden = !!update; el('source-review').hidden = !update; if (!update) return;
     put('review-kind', `${update.kind.toUpperCase()} · ${update.provenance}`); put('review-status', update.status === 'pending' ? 'Human review needed' : update.status === 'dismissed' ? 'Dismissed with evidence' : 'Reviewed & saved');
     put('review-source-title', `${update.author}’s field update`); put('review-source-time', `${dateLabel(update.observedAt)} · ${s.colony.name} · source ${update.id}`);
     put('review-original', update.text); el('review-photo-wrap').hidden = !update.attachment; if (update.attachment) el('review-photo').src = update.attachment;
+    el('review-photo-link').href = update.attachment || '#';
+    el('review-photo').alt = update.photo ? 'Uploaded cat photo retained with this field report' : 'Generated example photo attached to a fictional cat sighting';
+    put('review-photo-caption', update.photo ? 'Caregiver upload · compare markings and context before confirming identity.' : 'Generated example photo · reused in two fictional sightings. A caregiver confirms identity.');
+    const duplicates = (update.samePhotoSources || []).map(id => s.updates.find(item => item.id === id)).filter(Boolean);
+    el('review-duplicates').hidden = !duplicates.length;
+    el('review-duplicates').replaceChildren(node('b', '', 'This photo is already in the inbox.'), node('p', '', 'Compare the earlier report before creating a new identity or ticket. Matching file content alone does not confirm the cat.'));
+    for (const previous of duplicates) { const button = actionButton(`Compare ${previous.author}’s report ↗`, 'duplicate', previous.id); button.addEventListener('click', () => this.selectUpdate(previous.id)); el('review-duplicates').append(button); }
     el('review-location').hidden = update.kind !== 'location'; el('source-review-form').hidden = update.status !== 'pending'; el('review-receipt').hidden = update.status === 'pending';
     if (update.status !== 'pending') {
       const cat = s.cats.find(item => item.id === update.catId);
-      put('review-receipt', `${update.reviewer} reviewed this ${dateLabel(update.reviewedAt)}. ${cat ? `Linked to ${cat.name} (${cat.id}). ` : 'Colony evidence retained. '}${update.decision === 'new' ? 'One new identity added. ' : update.decision === 'existing' ? 'Census total unchanged by this sighting. ' : ''}${update.reviewNote || ''}`); return;
+      put('review-receipt', `${update.reviewer} reviewed this ${dateLabel(update.reviewedAt)}. ${cat ? `Linked to ${cat.name} (${cat.id}). ` : 'Colony evidence retained. '}${update.decision === 'new' ? 'One new identity added. ' : update.decision === 'existing' ? 'Census total unchanged by this sighting. ' : ''}${update.taskId ? 'Evidence attached to the shared care ticket. ' : ''}${update.reviewNote || ''}`); return;
     }
     el('review-cat').replaceChildren(new Option('Choose an identity', ''));
     for (const cat of s.cats) el('review-cat').add(new Option(`${cat.name} · ${cat.description}`, cat.id));
@@ -133,6 +150,16 @@ export class CareDesk {
     el('review-new-name').required = value === 'new'; el('review-new-description').required = value === 'new';
     el('review-evidence').required = ['procedure', 'dismiss'].includes(value); el('review-reference').required = value === 'procedure'; el('review-procedure-date').required = value === 'procedure';
     put('review-effect', value === 'new' ? 'Adds one identity with TNVR unknown.' : value === 'procedure' ? 'Requires a checked record and procedure date.' : value === 'existing' ? 'Adds a sighting, keeping the cat counted once.' : 'Original source remains in the record.');
+    this.reviewTickets();
+  }
+  reviewTickets() {
+    const decision = el('review-decision').value, catId = decision === 'existing' ? el('review-cat').value : null;
+    const cat = this.state.cats.find(item => item.id === catId), preview = el('review-identity-preview'); preview.replaceChildren(); preview.hidden = !cat;
+    if (cat) { if (cat.photo) preview.append(photoGallery([{ url: cat.photo, name: `Reference photo for ${cat.name}` }])); const copy = node('div'); copy.append(node('b', '', `${cat.name} · existing identity`), node('p', '', cat.description), node('small', '', 'Compare markings, place and time. AI suggestions need your confirmation.')); preview.append(copy); }
+    const tasks = ['existing', 'colony'].includes(decision) ? this.state.tasks.filter(task => task.status !== 'completed' && (task.catId || null) === (catId || null)) : [];
+    el('review-ticket-wrap').hidden = !tasks.length; el('review-ticket').replaceChildren(new Option('Separate issue / no existing ticket', ''));
+    for (const task of tasks) el('review-ticket').add(new Option(`${task.title} · ${task.assignee || 'unassigned'}`, task.id));
+    put('review-ticket-hint', `${tasks.length} open ticket${tasks.length === 1 ? '' : 's'} for this ${catId ? 'cat' : 'colony'}. If this is the same issue, attach the evidence to one ticket.`);
   }
   async confirmReview() {
     if (!el('source-review-form').reportValidity()) return;
@@ -140,15 +167,17 @@ export class CareDesk {
     const sourceId = this.selected;
     try {
       await this.change(`/updates/${encodeURIComponent(sourceId)}/review`, { decision: el('review-decision').value, reviewer: el('review-author').value.trim(), catId: el('review-cat').value,
-        alias: el('review-alias').value.trim(), name: el('review-new-name').value.trim(), description: el('review-new-description').value.trim(), note: el('review-evidence').value.trim(), reference: el('review-reference').value.trim(), procedureDate: el('review-procedure-date').value });
+        alias: el('review-alias').value.trim(), name: el('review-new-name').value.trim(), description: el('review-new-description').value.trim(), note: el('review-evidence').value.trim(), reference: el('review-reference').value.trim(), procedureDate: el('review-procedure-date').value, relatedTaskId: el('review-ticket').value });
       this.notify('Review saved. Original evidence stays attached to the shared record.');
     } catch (error) { if (this.selected === sourceId) { put('review-form-error', error.message); el('review-form-error').hidden = false; } }
     finally { button.disabled = false; }
   }
   async phoneUpdate() {
     const button = el('phone-update-form').querySelector('[type=submit]'); button.disabled = true;
-    try { const state = await this.change('/updates', { author: el('phone-update-author').value.trim(), text: el('phone-update-text').value.trim(), needsCare: el('phone-update-care').checked });
-      this.selected = state.updates.at(-1).id; this.renderInbox(); this.renderReview(); el('phone-update-dialog').close(); el('field-updates').scrollIntoView({ behavior: 'smooth' }); this.notify('Field update saved to the review inbox.'); }
+    const analyze = el('field-ai-check').checked;
+    try { const state = await this.change('/updates', { author: el('phone-update-author').value.trim(), text: el('phone-update-text').value.trim(), needsCare: el('phone-update-care').checked, photo: this.fieldPhoto.value() });
+      this.selected = state.updates.at(-1).id; this.renderInbox(); this.renderReview(); el('phone-update-dialog').close(); el('field-updates').scrollIntoView({ behavior: 'smooth' }); this.notify('Field update saved to the review inbox.');
+      if (analyze && state.updates.at(-1).photo) void this.vision.analyze(state.updates.at(-1).photo.id); }
     catch (error) { put('phone-update-error', error.message); el('phone-update-error').hidden = false; }
     finally { button.disabled = false; }
   }
@@ -161,7 +190,12 @@ export class CareDesk {
       header.append(node('span', `care-severity ${task.severity}`, task.status === 'completed' ? 'Completed ✓' : task.severity === 'urgent' ? 'Needs attention' : 'Care follow-up'), node('small', '', task.origin));
       card.append(header, node('h3', '', task.title), node('p', '', task.status === 'completed' ? task.resolution : `${task.assignee || 'No caregiver assigned'}${task.dueAt ? ` · check-in ${dateLabel(task.dueAt)}` : ' · agree on a check-in'}`));
       if (task.detail && task.status !== 'completed') card.append(node('p', 'rescue-task-detail', task.detail));
+      const sources = ticketSources(this.state, task), photos = [...sources.filter(source => source.attachment).map(source => ({ id: source.photo?.id, url: source.attachment, name: `Photo report from ${source.author}` })), ...(task.photos || [])];
+      if (photos.length) card.append(photoGallery(photos));
+      if (photos.some(photo => photo.id)) card.append(this.vision.taskEvidence(photos));
+      card.append(node('small', 'ticket-evidence-count', `${sources.length} source report${sources.length === 1 ? '' : 's'} · ${photos.length} photo${photos.length === 1 ? '' : 's'} · one care ticket`));
       const actions = node('div', 'rescue-task-actions'); actions.append(actionButton('See the source ↗', 'source', task.sourceId));
+      for (const source of sources.filter(source => source.id !== task.sourceId)) actions.append(actionButton(`${source.author}’s report ↗`, 'source', source.id));
       if (task.status !== 'completed') actions.append(actionButton(task.assignee ? 'Update follow-up' : 'Assign a caregiver', 'followup', task.id, 'button outline small'));
       else actions.append(node('small', '', `${task.assignee} · ${dateLabel(task.completedAt)}`));
       card.append(actions); list.append(card);
@@ -174,13 +208,17 @@ export class CareDesk {
     el('followup-due').value = task.dueAt ? new Date(Date.parse(task.dueAt) - new Date(task.dueAt).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
     el('followup-note').value = ''; el('followup-cats').value = 0; el('followup-food').checked = false; el('followup-water').checked = false;
     el('followup-visit-fields').hidden = true; el('followup-error').hidden = true; el('followup-dialog').showModal();
+    this.taskPhoto.reset(); this.vision.prepareForm('task');
   }
   async saveTask() {
     const button = el('followup-form').querySelector('[type=submit]'); button.disabled = true;
+    const analyze = el('task-ai-check').checked, taskId = this.taskId;
     try {
-      await this.change(`/tasks/${encodeURIComponent(this.taskId)}`, { status: el('followup-status').value, assignee: el('followup-assignee').value.trim(),
-        dueAt: el('followup-due').value ? new Date(el('followup-due').value).toISOString() : '', note: el('followup-note').value.trim(), catsSeen: Number(el('followup-cats').value), foodRefilled: el('followup-food').checked, waterChanged: el('followup-water').checked }, 'PATCH');
+      const photo = this.taskPhoto.value();
+      const state = await this.change(`/tasks/${encodeURIComponent(taskId)}`, { status: el('followup-status').value, assignee: el('followup-assignee').value.trim(),
+        dueAt: el('followup-due').value ? new Date(el('followup-due').value).toISOString() : '', note: el('followup-note').value.trim(), catsSeen: Number(el('followup-cats').value), foodRefilled: el('followup-food').checked, waterChanged: el('followup-water').checked, photo }, 'PATCH');
       el('followup-dialog').close(); this.notify('Care follow-up saved with its evidence.');
+      if (analyze && photo) { const attached = state.tasks.find(task => task.id === taskId)?.photos?.find(item => item.id === photo.id); if (attached) void this.vision.analyze(attached.id); }
     } catch (error) { put('followup-error', error.message); el('followup-error').hidden = false; }
     finally { button.disabled = false; }
   }
@@ -209,7 +247,7 @@ export class CareDesk {
     const list = el('rescue-cat-list'); list.replaceChildren();
     for (const cat of ordered.slice(0, query ? 9 : 3)) {
       const card = actionButton('', 'cat', cat.id, 'rescue-cat-card'), avatar = node('span', 'rescue-cat-avatar');
-      if (cat.photo) { const img = node('img'); img.src = cat.photo; img.alt = 'Generated example portrait'; avatar.append(img); }
+      if (cat.photo) { const img = node('img'); img.src = cat.photo; img.alt = cat.photo.startsWith('/api/') ? 'Photo from a reviewed field report' : 'Generated example portrait'; avatar.append(img); }
       else { avatar.textContent = cat.name.slice(0, 1); }
       const copy = node('span', 'rescue-cat-card-copy'); copy.append(node('b', '', cat.name), node('span', '', cat.description), node('small', '', cat.aliases.length ? `Also known as ${cat.aliases.join(', ')}` : `${cat.observations.length} linked source updates`), node('span', `cat-record-badge ${cat.tnvrStatus}`, cat.tnvrStatus === 'confirmed' ? 'TNVR record confirmed' : 'TNVR unknown · review needed'));
       card.append(avatar, copy, node('span', 'cat-record-arrow', '↗')); list.append(card);
@@ -226,7 +264,7 @@ export class CareDesk {
     if (!cat.observations.length) content.append(node('p', 'small-note', 'Baseline exercise identity. No new field update has been linked yet.'));
     for (const sourceId of cat.observations) {
       const update = this.state.updates.find(item => item.id === sourceId);
-      if (update) { const item = node('article', 'cat-source-record'); item.append(node('b', '', `${update.author} · ${dateLabel(update.observedAt)}`), node('p', '', update.text), node('small', '', `Reviewed by ${update.reviewer} · ${update.reviewNote || 'Source linked after human review.'}`), actionButton('Open original source ↗', 'source', update.id)); content.append(item); }
+      if (update) { const item = node('article', 'cat-source-record'); item.append(node('b', '', `${update.author} · ${dateLabel(update.observedAt)}`), node('p', '', update.text), node('small', '', `Reviewed by ${update.reviewer} · ${update.reviewNote || 'Source linked after human review.'}`), actionButton('Open original source ↗', 'source', update.id)); if (update.attachment) item.append(photoGallery([{ url: update.attachment }])); content.append(item); }
     }
     el('cat-evidence-dialog').showModal();
   }

@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "dev": "node --watch --env-file-if-exists=.env server/index.js",
-    "review": "PORT=3001 DB_PATH=./data/review.sqlite node server/index.js",
+    "review": "PORT=3001 DB_PATH=./data/review.sqlite node --env-file-if-exists=.env server/index.js",
     "build": "node scripts/build.js",
     "test": "node --test test/*.test.js",
     "test:browser": "node test/browser.js",
@@ -16,6 +16,8 @@
     "test:planning-browser": "node test/planning-browser.js",
     "test:rescue-browser": "node test/rescue-browser.js",
     "test:hardware-browser": "node test/hardware-browser.js",
+    "test:photos-browser": "node test/care-photos-browser.js",
+    "test:vision-browser": "node test/cat-vision-browser.js",
     "test:firmware": "node test/firmware.js",
     "gateway": "node --env-file-if-exists=.env gateway/index.js",
     "simulate": "node --env-file-if-exists=.env scripts/simulate.js",

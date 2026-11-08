@@ -9,6 +9,7 @@ export class Store {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
     for (const table of tables) this.db.exec(`CREATE TABLE IF NOT EXISTS ${table} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
+    this.db.exec('CREATE TABLE IF NOT EXISTS care_photos (id TEXT PRIMARY KEY, data BLOB NOT NULL)');
     this.db.exec(`CREATE TABLE IF NOT EXISTS readings (
       id INTEGER PRIMARY KEY, device_id TEXT NOT NULL, boot_id TEXT NOT NULL,
       sequence INTEGER NOT NULL, sampled_at TEXT NOT NULL, received_at TEXT NOT NULL,
