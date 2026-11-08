@@ -1,0 +1,190 @@
+/* Demo landing page: map first, signals second, shared care next. */
+.demo-welcome{display:flex;justify-content:space-between;align-items:center;gap:32px;padding:36px 0 29px}
+.demo-welcome h1{font-size:clamp(30px,3.2vw,44px);letter-spacing:-1.8px;line-height:1.15;margin:10px 0 12px;font-weight:800}
+.demo-welcome h1>span{color:var(--green)}
+.demo-welcome p{color:var(--muted);font-size:13px;line-height:1.7;margin:0;max-width:640px}
+.demo-welcome-actions{display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0}
+.demo-welcome-actions>.button{min-height:48px;font-size:12px;padding:13px 20px;gap:14px}
+.demo-welcome-actions>span{font-size:9px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.demo-welcome-actions .connection-dot{width:5px;height:5px}
+.demo-path{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:14px;background:#fffefa;overflow:hidden}
+.demo-path>a{display:flex;align-items:center;gap:11px;padding:13px 17px;font-size:11px;min-height:49px}
+.demo-path>a+a{border-left:1px solid var(--line)}
+.demo-path b{font-size:10px;color:#df745b;letter-spacing:1px}
+.demo-path .icon{margin-left:auto;width:18px;height:18px;color:var(--green)}
+.demo-path>a:hover{background:var(--mint)}
+.network-section{margin:30px 0 38px}
+.map-section-heading h2{font-size:27px;letter-spacing:-.8px;margin:6px 0 8px;line-height:1.2}
+.map-section-heading>div>p{font-size:11px}
+.map-canvas{height:300px}
+.network-section[data-expanded=true] .map-canvas{height:380px}
+.map-detail{justify-content:center;gap:4px;background:#eef5e9}
+.map-detail-heading h3{font-size:25px}
+.map-detail>.button{margin-top:12px}
+.network-section[data-expanded=false] .map-detail>.button{margin-top:auto}
+.network-section[data-expanded=false] .map-detail{padding:26px}
+.network-section[data-expanded=false] .map-census{margin-top:18px}
+.network-section[data-expanded=false] .map-record-note{font-size:11px;line-height:1.8;margin:15px 0}
+.map-filters-panel{border-top:0;background:#f1f4ed;border-radius:14px;padding:12px;margin-bottom:15px;align-items:flex-start}
+.map-filters{flex-wrap:wrap}
+.map-filters button{background:#fffefa}
+.demo-category{border-top:1px solid var(--line);padding-top:34px;scroll-margin-top:24px;margin-bottom:38px}
+.demo-category-heading{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:23px}
+.demo-category-heading h2{font-size:30px;letter-spacing:-1px;line-height:1.2;margin:8px 0 11px}
+.demo-category-heading p{font-size:12px;line-height:1.8;color:var(--muted);max-width:700px;margin:0}
+.demo-category-heading>.text-link{font-size:11px;flex-shrink:0;min-height:44px;display:flex;align-items:center}
+#weather-sensors .colony-focus{margin:0 0 17px;padding:16px 20px;background:#f0f4eb}
+.monitoring-grid{grid-template-columns:minmax(0,1fr);gap:17px}
+.care-gauges{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.care-gauge{display:flex;flex-direction:column;min-height:270px;padding:18px 18px 0}
+.gauge-title{flex-direction:row;align-items:center;gap:9px}
+.gauge-title h2{font-size:15px;line-height:1.35}
+.gauge-title .icon-badge{width:33px;height:33px;flex-shrink:0}
+.gauge-title .icon{width:23px;height:23px}
+.gauge-reading{margin-top:20px;gap:8px;justify-content:flex-start;flex:0;min-height:74px}
+.gauge-reading strong{font-size:38px;line-height:1.15}
+.care-gauge>p{font-size:11px;line-height:1.7;min-height:54px;margin:9px 0 12px}
+.food-visual,.weather-visual,.water-visual{height:58px;width:100%;margin:0 auto 10px;flex-shrink:0;max-width:180px}
+.food-visual svg{max-height:65px}
+.weather-visual{transform:scale(.8);transform-origin:center}
+.water-vessel{max-height:58px}.water-lines{display:none}
+.gauge-footer{width:100%;margin-top:auto;min-height:40px;font-size:8px}
+.temperature-card{grid-column:auto;display:flex;gap:0}
+.temperature-card .gauge-reading{grid-column:auto;grid-row:auto}
+.temperature-card .gauge-reading strong{font-size:23px;letter-spacing:-.8px;white-space:normal}
+.temperature-card>.temperature-range-note{font-size:9px;line-height:1.7;min-height:0;margin:0 0 12px}
+.temperature-card .temperature-scale{margin:8px 0 20px;width:100%}
+.temperature-card>.gauge-footer{grid-column:auto;grid-row:auto;display:block;font-size:8px;line-height:1.6}
+.temperature-card>.gauge-footer>span{display:block}
+.care-callout{grid-column:1;display:flex;flex-direction:row;align-items:center;gap:17px;padding:18px 22px;margin:0;min-height:0}
+.care-callout-copy{flex:1}
+.care-callout h2{font-size:21px;margin:4px 0 6px}
+.care-callout p{margin:0}
+.care-callout-actions{width:auto;flex-shrink:0;align-items:flex-end;gap:8px}
+.care-callout .button{width:auto;min-width:190px;font-size:11px}
+#weather-sensors .planning-section{margin-top:27px}
+#weather-sensors .planning-section>.section-heading{margin-bottom:16px}
+#weather-sensors .planning-section>.section-heading h2{font-size:24px}
+.demo-feature-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:24px;align-items:stretch}
+.demo-feature-grid .activity-card{padding:26px;background:#f3f6ed;display:flex;flex-direction:column}
+.demo-feature-grid .section-heading h2,.photo-demo-copy h2{font-size:25px;line-height:1.2;letter-spacing:-.7px;margin:8px 0 9px}
+.feature-description{font-size:12px;color:var(--muted);line-height:1.85;margin:0 0 20px}
+.demo-feature-grid .activity-card>.section-heading{margin-bottom:0}
+.demo-feature-grid .care-timeline{flex:1;margin-bottom:22px}
+.feature-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.feature-actions .button{font-size:11px;min-height:44px}
+.feature-actions .text-link{font-size:11px;min-height:44px}
+.journal-proof{display:flex;align-items:center;gap:8px;margin-top:20px;border-top:1px solid #dce6d5;padding-top:15px;font-size:10px;line-height:1.7;color:#55765e}
+.journal-proof .connection-dot{width:6px;height:6px;flex-shrink:0}
+.photo-demo-card{min-width:0;border:1px solid #e8dfcd;border-radius:21px;background:#fffbf2;padding:26px;scroll-margin-top:24px}
+.photo-demo-copy .eyebrow{color:#9e6549}
+.photo-demo-body{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:19px;align-items:start}
+.photo-demo-card .photo-demo-image{margin:0;min-height:0;aspect-ratio:4/5;position:relative;border-radius:15px;overflow:hidden}
+.photo-demo-image img{width:100%;height:100%;object-fit:cover;object-position:43% center;display:block}
+.photo-demo-card .photo-demo-image figcaption{position:absolute;top:auto;bottom:10px;left:10px;right:10px;background:#fffdf4eb;padding:7px 8px;border-radius:7px;font-family:inherit;font-size:9px;font-style:normal;line-height:1.4;color:#565f4c;transform:none;text-align:center}
+.photo-demo-review{min-width:0}
+.photo-demo-review>.soft-badge{font-size:7px;letter-spacing:.3px;line-height:1.7;display:inline-block;white-space:normal;padding:6px 9px}
+#photo-demo-prompt{font-size:12px;line-height:1.8;color:#566e5d;margin:13px 0}
+.photo-demo-review .button{min-height:44px;font-size:10px;gap:7px;padding:10px 12px;white-space:normal;text-align:left}
+.photo-demo-review .button .icon{width:16px;height:16px}
+.photo-demo-review>.small-note{font-size:9px;line-height:1.8;color:#817d68;margin:12px 0 0}
+.photo-demo-review>.photo-demo-disclosure{font-size:8px;margin-top:8px}
+.photo-demo-result dl{margin:12px 0;border-top:1px solid #e8dfcd}
+.photo-demo-result dl>div{padding:8px 0;border-bottom:1px solid #e8dfcd}
+.photo-demo-result dt{font-size:9px;color:#7b806b;margin-bottom:3px}
+.photo-demo-result dd{font-size:12px;color:#365e4f;font-weight:700;margin:0}
+.photo-demo-result>p{font-size:10px;line-height:1.8;color:#66705a}
+.rescue-desk{border-top:1px solid var(--line);padding-top:30px}
+.rescue-story-bar{flex-wrap:wrap}
+.rescue-story-bar>div{min-width:250px}
+.rescue-story-bar>.button{flex-shrink:0}
+.demo-station-section{margin:35px 0}
+.demo-station-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:24px}
+.demo-station-grid .station-preview{grid-column:auto;grid-template-columns:minmax(0,1fr);min-height:0}
+.demo-station-grid .station-heading{padding:22px 24px 0}
+.demo-station-grid .colony-scene{max-width:420px;width:100%;margin:auto}
+.demo-station-grid .history-card{display:flex;flex-direction:column;justify-content:center}
+.demo-station-grid .section-heading h2{font-size:25px}
+.demo-guide{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:35;width:min(1000px,calc(100% - 40px));background:#fffef8;border:1px solid #b6cfbd;border-radius:16px;box-shadow:0 8px 40px #153e3626;overflow:hidden}
+.demo-guide-progress{height:3px;background:#e0ebdd}
+.demo-guide-progress>i{display:block;height:100%;background:var(--green);width:25%}
+.demo-guide-inner{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:16px 21px}
+.demo-guide-inner>div:first-child{min-width:0}
+.demo-guide-inner strong{font-size:16px;display:block;margin:4px 0}
+.demo-guide-inner p{font-size:11px;line-height:1.7;margin:0;color:var(--muted)}
+.demo-guide-actions{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.demo-guide-actions>.button{font-size:11px;min-height:44px}
+.demo-guide-actions>.text-link{font-size:11px;min-height:44px}
+.demo-guide-actions>.plain-button{font-size:25px;min-width:40px;min-height:44px}
+body[data-guided-demo=true]{padding-bottom:150px}
+@media(min-width:701px) and (max-width:1100px){
+  .demo-welcome{gap:20px}.demo-welcome h1{font-size:35px}.demo-welcome p{font-size:12px}
+  .demo-welcome-actions>.button{font-size:11px;padding:12px 15px}
+  .care-gauges{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .demo-feature-grid{grid-template-columns:1fr 1fr;gap:18px}
+  .photo-demo-body{grid-template-columns:1fr}.photo-demo-card .photo-demo-image{aspect-ratio:2.2}
+  .demo-station-grid{gap:18px}.demo-guide-inner{gap:14px}.demo-guide-actions{gap:9px}
+}
+@media(max-width:700px){
+  .demo-welcome{padding:27px 0 23px;flex-direction:column;align-items:flex-start;gap:20px}
+  .demo-welcome .eyebrow{font-size:8px;letter-spacing:.9px}
+  .demo-welcome h1{font-size:35px;letter-spacing:-1.3px;max-width:400px;line-height:1.15;margin:10px 0 12px}
+  .demo-welcome h1>span{display:block}.demo-welcome p{font-size:12px}
+  .demo-welcome-actions{align-items:flex-start;gap:9px}
+  .demo-welcome-actions>.button{min-height:46px;padding:12px 18px;font-size:12px}
+  .demo-path{display:none}
+  .demo-path>a{padding:11px 10px;font-size:9px;gap:7px;min-height:48px}
+  .demo-path>a:nth-child(3){border-left:0;border-top:1px solid var(--line)}
+  .demo-path>a:nth-child(4){border-top:1px solid var(--line)}
+  .demo-path .icon{width:15px;height:15px}.demo-path b{font-size:9px}
+  .network-section{margin:26px 0 30px}.map-section-heading h2{font-size:23px;line-height:1.2}
+  .map-section-heading>div>p{font-size:10px}.map-section-heading{align-items:center;gap:12px}
+  .map-header-actions .button{font-size:9px;padding:10px;gap:4px}
+  .map-canvas{height:260px}.network-section[data-expanded=true] .map-canvas{height:310px}
+  .network-section[data-expanded=false] .map-detail{display:flex;padding:20px;border-radius:0 0 20px 20px;border-top:0}
+  .network-section[data-expanded=false] .colony-map{border-radius:20px 20px 0 0}
+  .network-section[data-expanded=false] .map-detail>.button{margin-top:12px}
+  .network-section[data-expanded=false] .map-census{margin-top:0;margin-bottom:4px}
+  .network-section[data-expanded=false] .map-record-note{font-size:10px;margin:10px 0}
+  .network-section[data-expanded=false] .map-cat-avatar{display:grid}
+  .map-detail-heading h3{font-size:24px}
+  .map-filters-panel{padding:12px;gap:10px}.map-filters button{font-size:9px;padding:8px}
+  .demo-category{padding-top:27px;margin-bottom:28px}
+  .demo-category-heading{flex-direction:column;align-items:flex-start;gap:7px;margin-bottom:18px}
+  .demo-category-heading h2{font-size:27px;letter-spacing:-.8px}
+  .demo-category-heading p{font-size:12px}.demo-category-heading>.text-link{font-size:11px;min-height:36px}
+  #weather-sensors .colony-focus{padding:15px;margin-bottom:15px;flex-wrap:wrap}
+  .care-gauges{grid-template-columns:1fr;gap:13px}
+  .care-gauge{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr auto auto;gap:0 16px;min-height:225px;padding:18px 20px 0}
+  .gauge-title{grid-column:1/-1}.gauge-title h2{font-size:18px}
+  .gauge-reading{grid-column:1;grid-row:2;margin-top:15px;min-height:70px}
+  .food-visual,.weather-visual,.water-visual{grid-column:2;grid-row:2;height:68px;margin:8px 0 0;width:100%;max-width:150px}
+  .care-gauge>p{grid-column:1/-1;grid-row:3;min-height:0;margin:12px 0 10px;font-size:11px}
+  .gauge-footer{grid-column:1/-1;grid-row:4;font-size:9px}
+  .temperature-card{display:flex;padding-bottom:0}.temperature-card .gauge-reading{min-height:0;margin-top:18px}
+  .temperature-card .gauge-reading strong{font-size:28px}.temperature-card .temperature-range-note{font-size:9px;margin-top:0}
+  .care-callout{display:flex;flex-wrap:wrap;align-items:flex-start;padding:20px;gap:12px}
+  .care-callout-icon{width:32px;height:32px}.care-callout-copy{flex:1;min-width:150px}
+  .care-callout h2{font-size:20px}.care-callout-actions{width:100%;align-items:stretch;gap:10px}
+  .care-callout .button{width:100%;min-width:0}.care-callout-actions>a{text-align:center;min-height:30px}
+  #weather-sensors .planning-section{margin-top:24px}
+  .demo-feature-grid{grid-template-columns:1fr;gap:18px}
+  .demo-feature-grid .activity-card,.photo-demo-card{padding:22px}
+  .demo-feature-grid .section-heading h2,.photo-demo-copy h2{font-size:25px}
+  .photo-demo-body{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:13px}
+  .photo-demo-card .photo-demo-image{aspect-ratio:3/5}
+  .photo-demo-review .button{font-size:9px;padding:9px;gap:4px}
+  .photo-demo-review .button .icon{width:13px;height:13px}
+  #photo-demo-prompt{font-size:11px}.photo-demo-review>.small-note{font-size:8px}
+  .rescue-story-bar>div{min-width:100%;flex-basis:100%}
+  .rescue-story-bar{gap:10px 15px}.rescue-story-bar>.button{font-size:10px}
+  .demo-station-grid{grid-template-columns:1fr;gap:18px}.demo-station-grid .station-preview{padding:0}
+  .demo-station-grid .station-heading{padding:22px 22px 0}
+  .demo-guide{bottom:87px;width:calc(100% - 24px);border-radius:14px}
+  .demo-guide-inner{flex-direction:column;align-items:stretch;padding:13px 16px;gap:8px}
+  .demo-guide-inner strong{font-size:14px}.demo-guide-inner p{font-size:10px;line-height:1.6}
+  .demo-guide-actions{justify-content:flex-end;gap:13px}.demo-guide-actions>.text-link{margin-right:auto}
+  .demo-guide-actions>.button{font-size:10px;min-height:40px}.demo-guide-actions>.plain-button{min-width:30px;min-height:40px}
+  body[data-guided-demo=true]{padding-bottom:280px}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

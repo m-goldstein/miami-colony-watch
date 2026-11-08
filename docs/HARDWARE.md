@@ -70,6 +70,8 @@ The wetness index is 0–100 relative to those endpoints. It is not relative hum
 
 Rotate **three detents** to change pages, in either direction. Set `ENCODER_DETENTS_PER_SCREEN` for a different travel distance. `ENCODER_STEPS_PER_DETENT` configures the encoder's quadrature hardware separately. `ENCODER_REVERSED` changes the direction. Encoder SW has no navigation action.
 
+Firmware 1.3 checks the OLED text every 250 ms and writes only changed characters in place. It pads shorter values to remove old digits and disables scrolling. The screen is cleared during display initialization, rather than on every refresh, to avoid a rolling redraw.
+
 1. Food reserve: approximate fill, headspace, valid echoes, refill check.
 2. Rain/surface wetness: plate state, raw AO, raw DO, interpretation limits.
 3. Standing water: raw A2, normalized index, interpretation limits.

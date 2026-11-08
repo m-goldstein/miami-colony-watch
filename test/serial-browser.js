@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -308,7 +308,8 @@ try {
   assert.equal(await unsupported.locator('#connect').isDisabled(), true);
   assert.match(await unsupported.locator('#support-notice').innerText(), /does not expose Web Serial/);
   const firmware = await fetch(base + '/firmware/colony_monitor.ino');
-  assert.equal(firmware.status, 200); assert.match(await firmware.text(), /colony-monitor\/1.2/);
+  assert.equal(firmware.status, 200);
+  assert.equal(await firmware.text(), readFileSync(new URL('../firmware/colony_monitor/colony_monitor.ino', import.meta.url), 'utf8'));
   console.log('PASS: browser USB chooser cancellation/busy recovery, live fragmented telemetry, DHT11 heat/cold/freezing display and saved tasks, thermal map filters, missing/stale temperature, command round trips, malformed-frame recovery, authenticated manual saves and replay, unknown echo, download, mobile layout, disconnect/reconnect/cable removal, unsupported-browser guidance. Serial hardware is mocked.');
 } finally {
   if (browser) await browser.close();

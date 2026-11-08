@@ -17,7 +17,7 @@ void checkDisplay() {
 #if ENABLE_OLED
   advance(250);
   unsigned rows = 1, width = 0;
-  for (char c : display.output) {
+  for (char c : display.text()) {
     if (c == '\n') { assert(width <= 21); width = 0; ++rows; }
     else ++width;
   }
@@ -46,6 +46,18 @@ int main() {
   turn(2); assert(screen == 0 && screenTravel == 2);
   turn(1); assert(screen == 1 && screenTravel == 0);
   checkDisplay();
+#if ENABLE_OLED
+  assert(display.scrollMode == SCROLL_MODE_OFF && display.clears == 1);
+  const unsigned stableWrites = display.writes;
+  advance(250);
+  assert(display.writes == stableWrites); // An unchanged frame performs no OLED writes.
+  const std::string stableHeading = display.rows[0];
+  analogValues[A1] = 9; advance(500);
+  assert(display.rows[3] == "AO A1: 9             "); // Erase old digits without blanking the row.
+  assert(display.rows[0] == stableHeading && display.clears == 1);
+  assert(display.writes - stableWrites == 2); // Only the two stale digits change.
+  analogValues[A1] = 900; advance(500);
+#endif
   turn(-3); assert(screen == 0);
   turn(-3); assert(screen == 4); checkDisplay();
   turn(-3); assert(screen == 3); checkDisplay();
@@ -57,7 +69,7 @@ int main() {
   Serial.input = "B\n"; loop(); assert(browserRecent(simulatedNow));
   assert(!uplinkRecent(simulatedNow));  // Browser reception is not a saved upload.
   Serial.output.clear(); Serial.input = "HELLO\r\n"; loop();
-  assert(Serial.output.find("colony-monitor/1.2") != std::string::npos);
+  assert(Serial.output.find("colony-monitor/1.3") != std::string::npos);
   assert(Serial.output.find("\"screenCount\":5") != std::string::npos);
   Serial.input = "STREAM 500\n"; loop(); assert(telemetryIntervalMs == 500);
   Serial.input = "STREAM 1\nSTREAM 999999999999999\nSTREAM -500\n"; loop();
@@ -81,6 +93,12 @@ int main() {
     assert(pinValues[TRAFFIC_Y] == (TRAFFIC_ACTIVE_LOW ? LOW : HIGH));
   }
   temperatureSample(26.0f); assert(haveTemperature); // Reconnect recovers automatically.
+#if ENABLE_OLED
+  assert(display.clears == 1); // Sensor updates and page changes never clear the screen.
+  Wire.timedOut = true; advance(250); assert(!displayReady);
+  advance(60000); assert(displayReady && display.clears == 2);
+  advance(250); assert(display.rows[0] == "COLONY WATCH 3/5     "); // Redraw after I2C recovery.
+#endif
   // Emit actual firmware JSON lines for the Node ingestion integration test.
   Serial.output.clear();
   simulatedEchoUs = 1160;

@@ -1,5 +1,7 @@
 # Colony Watch — shared care for community cats
 
+The landing page opens with the **colony map**, then **weather and station sensors**, followed by the **colony journal and image classification demo**. Click **Run the colony demo** for a four-step walkthrough. Preview the prepared photo suggestions, open “Stripey” in the journal, and confirm the association with Mango without adding another cat. Photo suggestions are sample annotations, not live image analysis. Journal notes, care visits, and confirmed reviews use the existing saved exercise. Run `npm run test:demo-browser` to verify this flow and its mobile layouts.
+
 This review branch leads with the Bonus hackathon challenge: scattered field updates become a trustworthy cat census, assigned care, documented visits, and an evidence-backed report. South Point Park is the fictional example, with 14 baseline cats and 11 historical TNVR confirmations. The Arduino’s food, wetness, and DHT11 temperature readings contribute to the same care story.
 
 **Review branch:** `review/bonus-cat-care`, in the separate `miami-colony-watch-judges` worktree. The original checkout, running site, and database remain unchanged. [Review instructions and demo walkthrough](docs/BONUS_REVIEW.md).

@@ -18,7 +18,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(base, { waitUntil: 'networkidle' });
-  assert.equal(await page.locator('h1').innerText(), 'Know every cat.\nShare every next step.');
+  assert.equal(await page.locator('h1').innerText(), 'Every colony. One shared view.');
   await page.locator('.demo-label b').filter({ hasText: 'South Point Park' }).waitFor();
   await page.locator('#plan-lead').filter({ visible: true }).waitFor();
   assert.equal(await page.locator('#plan-lead').inputValue(), 'Elena');

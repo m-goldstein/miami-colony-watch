@@ -27,6 +27,45 @@
 #include <SSD1306Ascii.h>
 #include <SSD1306AsciiWire.h>
 SSD1306AsciiWire display;
+// System5x7 fits 21 columns and eight rows. Keep a small text cache instead
+// of a 1024-byte framebuffer, and overwrite only characters that changed.
+// Never send newlines to the OLED or blank the screen during a refresh.
+class OledText : public Print {
+  static const uint8_t COLUMNS = 21, ROWS = 8;
+  char previous[ROWS][COLUMNS] = {};
+  char line[COLUMNS];
+  uint8_t row = 0, column = 0;
+  void flushRow() {
+    if (row >= ROWS) return;
+    uint8_t index = 0;
+    while (index < COLUMNS) {
+      if (line[index] == previous[row][index]) { ++index; continue; }
+      display.setCursor(index * 6, row);
+      do {
+        display.write(line[index]);
+        previous[row][index] = line[index];
+        ++index;
+      } while (index < COLUMNS && line[index] != previous[row][index]);
+    }
+  }
+ public:
+  void invalidate() { memset(previous, 0, sizeof(previous)); }
+  void beginFrame() { row = column = 0; memset(line, ' ', sizeof(line)); }
+  size_t write(uint8_t value) override {
+    if (value == '\r') return 1;
+    if (value == '\n') {
+      flushRow();
+      if (row < ROWS) ++row;
+      column = 0; memset(line, ' ', sizeof(line));
+    } else if (row < ROWS && column < COLUMNS) line[column++] = value;
+    return 1;
+  }
+  void endFrame() {
+    flushRow();
+    memset(line, ' ', sizeof(line));
+    while (++row < ROWS) flushRow();
+  }
+} oledText;
 bool displayReady = false;
 unsigned long lastDisplayAttempt = 0;
 #endif
@@ -179,7 +218,7 @@ void serviceTelemetry(unsigned long now) {
   Serial.println('}');
 }
 void printHello() {
-  Serial.print(F("{\"event\":\"hello\",\"firmware\":\"colony-monitor/1.2\",\"protocolVersion\":1,\"telemetryIntervalMs\":"));
+  Serial.print(F("{\"event\":\"hello\",\"firmware\":\"colony-monitor/1.3\",\"protocolVersion\":1,\"telemetryIntervalMs\":"));
   Serial.print(telemetryIntervalMs);
   Serial.print(F(",\"screenCount\":")); Serial.print(SCREEN_COUNT); Serial.println('}');
 }
@@ -239,6 +278,8 @@ void setupDisplay() {
     Wire.beginTransmission(address);
     if (Wire.endTransmission() != 0) continue;
     display.begin(&Adafruit128x64, address); display.setFont(System5x7);
+    display.setScrollMode(SCROLL_MODE_OFF);
+    oledText.invalidate();
     display.invertDisplay(false); displayReady = true; return;
   }
   displayReady = false;
@@ -248,55 +289,56 @@ void serviceDisplay(unsigned long now) {
 #if ENABLE_OLED
   if (!displayReady) { if (now - lastDisplayAttempt >= 60000) setupDisplay(); return; }
   if (now - lastDisplay < DISPLAY_INTERVAL_MS) return;
-  lastDisplay = now; display.clear();
-  display.print(F("COLONY WATCH ")); display.print(screen + 1); display.print('/'); display.println(SCREEN_COUNT);
+  lastDisplay = now; oledText.beginFrame();
+  oledText.print(F("COLONY WATCH ")); oledText.print(screen + 1); oledText.print('/'); oledText.println(SCREEN_COUNT);
   switch (screen) {
     case 0:
-      display.println(F("FOOD RESERVE"));
-      display.print(F("Hopper: "));
-      if (foodKnown()) { display.print(foodPercent()); display.println('%'); } else display.println(F("UNKNOWN"));
-      display.print(F("Headspace: "));
-      if (foodKnown()) { tenths(display, distanceTenthsCm); display.println(F(" cm")); } else display.println(F("no echo"));
-      display.print(F("Valid echoes: ")); display.print(validSamples); display.println(F("/5"));
-      display.println(F("Estimate, not eaten"));
-      display.println(foodKnown() && foodPercent() <= FOOD_LOW_PERCENT ? F("ACTION: refill check") : F("Check food on visits"));
+      oledText.println(F("FOOD RESERVE"));
+      oledText.print(F("Hopper: "));
+      if (foodKnown()) { oledText.print(foodPercent()); oledText.println('%'); } else oledText.println(F("UNKNOWN"));
+      oledText.print(F("Headspace: "));
+      if (foodKnown()) { tenths(oledText, distanceTenthsCm); oledText.println(F(" cm")); } else oledText.println(F("no echo"));
+      oledText.print(F("Valid echoes: ")); oledText.print(validSamples); oledText.println(F("/5"));
+      oledText.println(F("Estimate, not eaten"));
+      oledText.println(foodKnown() && foodPercent() <= FOOD_LOW_PERCENT ? F("ACTION: refill check") : F("Check food on visits"));
       break;
     case 1:
-      display.println(F("RAIN / SURFACE WET"));
-      display.print(F("Plate: ")); display.println(!haveAnalog ? F("waiting") : (rainWet() ? F("WET") : F("DRY")));
-      display.print(F("AO A1: ")); display.println(rainRaw);
-      display.print(F("DO A0: ")); display.println(rainDigital == LOW ? F("LOW") : F("HIGH"));
-      display.println(F("No temp or humidity"));
-      display.println(F("Wet? Check shelter"));
+      oledText.println(F("RAIN / SURFACE WET"));
+      oledText.print(F("Plate: ")); oledText.println(!haveAnalog ? F("waiting") : (rainWet() ? F("WET") : F("DRY")));
+      oledText.print(F("AO A1: ")); oledText.println(rainRaw);
+      oledText.print(F("DO A0: ")); oledText.println(rainDigital == LOW ? F("LOW") : F("HIGH"));
+      oledText.println(F("No temp or humidity"));
+      oledText.println(F("Wet? Check shelter"));
       break;
     case 2:
-      display.println(F("STANDING WATER"));
-      display.print(F("Probe A2: ")); display.println(waterRaw);
-      display.print(F("Wetness index: ")); display.println(normalized(waterRaw, WATER_DRY_RAW, WATER_WET_RAW));
-      display.println(F("Index is NOT depth"));
-      display.println(F("Not drinking quality"));
-      display.println(F("Wet? Inspect access"));
+      oledText.println(F("STANDING WATER"));
+      oledText.print(F("Probe A2: ")); oledText.println(waterRaw);
+      oledText.print(F("Wetness index: ")); oledText.println(normalized(waterRaw, WATER_DRY_RAW, WATER_WET_RAW));
+      oledText.println(F("Index is NOT depth"));
+      oledText.println(F("Not drinking quality"));
+      oledText.println(F("Wet? Inspect access"));
       break;
     case 3:
-      display.println(F("STATION HEALTH"));
-      display.println(uplinkRecent(now) ? F("Saved ACK: recent") : (browserRecent(now) ? F("Browser ACK: recent") : F("USB link: waiting")));
-      display.print(F("Packets: ")); display.println(sequence);
-      display.print(F("Uptime min: ")); display.println(now / 60000);
-      display.println(F("USB -> browser/Node"));
-      display.println(F("Sensing stays active"));
+      oledText.println(F("STATION HEALTH"));
+      oledText.println(uplinkRecent(now) ? F("Saved ACK: recent") : (browserRecent(now) ? F("Browser ACK: recent") : F("USB link: waiting")));
+      oledText.print(F("Packets: ")); oledText.println(sequence);
+      oledText.print(F("Uptime min: ")); oledText.println(now / 60000);
+      oledText.println(F("USB -> browser/Node"));
+      oledText.println(F("Sensing stays active"));
       break;
     default:
-      display.println(F("STATION TEMPERATURE"));
-      display.print(F("Ambient: "));
-      if (haveTemperature) { printTemperature(display); display.println(F(" C")); } else display.println(F("UNKNOWN"));
-      display.println(F("DHT11 on D7"));
-      display.println(F("Not cat body temp"));
-      display.println(!haveTemperature ? F("Check thermometer") : temperatureTenthsC <= TEMPERATURE_FREEZING_TENTHS_C ? F("FREEZE: warm shelter") :
+      oledText.println(F("STATION TEMPERATURE"));
+      oledText.print(F("Ambient: "));
+      if (haveTemperature) { printTemperature(oledText); oledText.println(F(" C")); } else oledText.println(F("UNKNOWN"));
+      oledText.println(F("DHT11 on D7"));
+      oledText.println(F("Not cat body temp"));
+      oledText.println(!haveTemperature ? F("Check thermometer") : temperatureTenthsC <= TEMPERATURE_FREEZING_TENTHS_C ? F("FREEZE: warm shelter") :
         temperatureTenthsC <= TEMPERATURE_COLD_TENTHS_C ? F("COLD: dry shelter") : temperatureTenthsC >= TEMPERATURE_HOT_TENTHS_C ? F("HEAT: shade + water") : F("No temperature alert"));
-      display.println(F("Verify frost rating"));
+      oledText.println(F("Verify frost rating"));
       break;
   }
-  display.print(F("Turn ")); display.print(screenTravel); display.print('/'); display.print(ENCODER_DETENTS_PER_SCREEN); display.print(F(" -> view"));
+  oledText.print(F("Turn ")); oledText.print(screenTravel); oledText.print('/'); oledText.print(ENCODER_DETENTS_PER_SCREEN); oledText.print(F(" -> view"));
+  oledText.endFrame();
   if (Wire.getWireTimeoutFlag()) displayReady = false;
 #else
   (void)now;
@@ -314,7 +356,7 @@ void setup() {
   digitalWrite(SONAR_TRIG, LOW); pinMode(SONAR_TRIG, OUTPUT); pinMode(SONAR_ECHO, INPUT);
   pinMode(WATER_SIGNAL, INPUT); pinMode(RAIN_AO, INPUT); pinMode(RAIN_DO, INPUT_PULLUP);
   Serial.begin(115200);
-  Serial.println(F("{\"event\":\"boot\",\"firmware\":\"colony-monitor/1.2\"}"));
+  Serial.println(F("{\"event\":\"boot\",\"firmware\":\"colony-monitor/1.3\"}"));
   thermometer.begin(); lastTemperature = millis();
   setupDisplay();
 }

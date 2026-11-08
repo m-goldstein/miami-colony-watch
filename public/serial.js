@@ -4,6 +4,7 @@ import { scenarios, demoReading, careState } from './colony-demo.js';
 import { ColonyMap } from './colony-map.js';
 import { ColonyPlanning } from './colony-planning.js';
 import { CareDesk } from './care-desk.js';
+import { DemoPage } from './demo-page.js';
 import { temperatureState, temperatureLabel, TEMPERATURE_ALERTS } from './temperature.js';
 
 const el = id => document.getElementById(id);
@@ -16,7 +17,7 @@ const history = [], logs = [];
 let latest = null, readingCount = 0, invalidCount = 0, firmware = 'waiting', confirmedInterval = null;
 let bootId = sessionId(), previousSequence = null, saving = false, startupMessage = '', mode = 'demo';
 let workspace = null, catsSignature = '', toastTimer, tourStep = null, visitTarget = null, visitSaving = false;
-let careExercise = null;
+let careExercise = null, demoPage = null;
 const demo = { scenario: 'calm', history: [], latest: null, events: [], sequence: 0 };
 const colonyMap = new ColonyMap();
 const planning = new ColonyPlanning({ notify, onSaved: (colonyId, plan) => {
@@ -25,9 +26,10 @@ const planning = new ColonyPlanning({ notify, onSaved: (colonyId, plan) => {
 } });
 const careDesk = new CareDesk({ notify, onChange: state => {
   if (careExercise && careExercise.createdAt !== state.createdAt) { demo.history.length = 0; demo.events.length = 0; demo.sequence = 0; tourStep = null; }
-  careExercise = state; catsSignature = ''; render();
+  careExercise = state; catsSignature = ''; render(); demoPage?.update(state);
 },
   onStation: (scenario, station) => { if (mode === 'demo') applyScenario(scenario, false, false, station); } });
+demoPage = new DemoPage({ careDesk, useDemo: () => setMode('demo') });
 for (let i = 0; i < 8; i++) {
   const reading = demoReading('calm', demo.sequence++);
   reading.foodPercent += 7 - i; reading.sonarDistanceCm = +(30 - reading.foodPercent * 0.25).toFixed(1);

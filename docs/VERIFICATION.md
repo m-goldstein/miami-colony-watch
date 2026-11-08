@@ -1,6 +1,23 @@
 # Verification evidence
 
-Checked locally on November 7, 2026. These results cover software, a virtual serial device, firmware simulation, and target compilation. No physical station has been flashed, field-calibrated, or installed by this task.
+The November 7, 2026 checks below cover software, a virtual serial device, firmware simulation, and target compilation. The November 8 connected-device check adds physical USB telemetry and a verified Uno firmware upload. Field calibration and installation remain unverified.
+
+## Connected Uno and OLED refresh — November 8, 2026
+
+The Arduino Uno at `/dev/ttyACM0` reported `colony-monitor/1.2` over its actual USB serial connection at 115200 baud. Three requested samples at 20:51:28–20:51:38 UTC passed the shared browser frame parser. After uploading firmware 1.3 with upload verification, its boot and HELLO replies confirmed the new version, and two further samples at 20:54:04 and 20:54:08 UTC passed both the browser parser and gateway/API packet validation.
+
+| Measurement | Connection | Live observations |
+| --- | --- | --- |
+| Food headspace, HC-SR04 | TRIG D5 / ECHO D6 | 18.3 cm before upload; 22.8 cm afterward; 5/5 valid echoes. Default calibration estimated 46% and 28% fill respectively; the hopper geometry was not calibrated in this check. |
+| Rain/surface wetness | DO A0 / AO A1 | Digital 1, analog 1022–1023: dry under the configured active-low comparator. |
+| Standing-water probe | A2 | Analog 0–1, normalized wetness index 0. |
+| Ambient temperature, DHT11 | D7 | 23.4°C in all five valid samples. |
+
+These observations confirm live telemetry for four implemented measurement channels. The rain and water observations are baseline ADC/comparator readings; a controlled dry/wet response was not tested, so they do not establish probe connectivity or sensitivity. Humidity is not sampled. RFID/microchip visits, the motorized gate, Wi-Fi/BLE/LoRa, and the proposed SHTC3 probe remain concepts. The running review API and both local databases contained only fictional demo stations, with no saved physical-device readings.
+
+The OLED previously cleared and repainted its entire display every 250 ms. Firmware 1.3 instead caches its 21×8 text cells and updates only changed character runs at fixed positions. Spaces erase leftover digits, scrolling is explicitly disabled, and a display reconnect invalidates the cache. The refresh interval and encoder navigation remain the same. Host tests check zero OLED writes for an unchanged frame, only two character writes when `900` becomes `9`, no refresh/page-change clears, bounded cursor positions, and redraw after an I²C timeout. Visual confirmation on the physical OLED is still needed.
+
+`npm run test:firmware` and all 46 `npm test` cases passed. The Uno build uses 15,332 / 32,256 bytes of flash and 823 / 2,048 bytes of static SRAM. The verified upload succeeded. The final capture received two valid readings and a malformed frame. Afterward, Chrome owned the same serial port, and a subsequent attempt reported it busy; competing readers may explain the malformed frame. Chrome's connection was left undisturbed. USB telemetry was not written into the real workspace. Local capture evidence is saved under ignored `test-results/device-validation-*.json`.
 
 ## Verified story
 
@@ -29,7 +46,7 @@ The Bonus review branch adds `test-results/rescue-desktop.png`, `test-results/re
 
 Temperature alert screenshots: `test-results/temperature-heat-desktop.png` and `test-results/temperature-heat-mobile.png`. Builds use Arduino AVR 1.8.8, SSD1306Ascii 1.3.5, DHT sensor library 1.4.7, and Adafruit Unified Sensor 1.1.15. DHT hardware and its pulse timings are mocked in host tests; actual Uno/Nano builds use the real libraries.
 
-## Target resource usage
+## Earlier target resource usage (firmware 1.2)
 
 | Build | Flash | Static SRAM |
 | --- | --- | --- |

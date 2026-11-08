@@ -32,12 +32,13 @@ void interrupts() {}
 unsigned long simulatedPrintDelayMs = 0;
 struct Print {
   std::string output;
-  void print(char value) { output += value; }
-  void print(const char* value) { output += value; }
-  void print(const __FlashStringHelper* value) { output += reinterpret_cast<const char*>(value); }
-  template<class T> void print(T value) { std::ostringstream s; s << +value; output += s.str(); }
-  template<class T> void print(T value, int base) { std::ostringstream s; if (base == HEX) s << std::hex; s << +value; output += s.str(); }
-  void println() { simulatedNow += simulatedPrintDelayMs; output += '\n'; }
+  virtual size_t write(uint8_t value) { output += static_cast<char>(value); return 1; }
+  void print(char value) { write(value); }
+  void print(const char* value) { while (*value) write(*value++); }
+  void print(const __FlashStringHelper* value) { print(reinterpret_cast<const char*>(value)); }
+  template<class T> void print(T value) { std::ostringstream s; s << +value; print(s.str().c_str()); }
+  template<class T> void print(T value, int base) { std::ostringstream s; if (base == HEX) s << std::hex; s << +value; print(s.str().c_str()); }
+  void println() { simulatedNow += simulatedPrintDelayMs; write('\r'); write('\n'); }
   template<class T> void println(T value) { print(value); println(); }
   template<class T> void println(T value, int base) { print(value, base); println(); }
 };
