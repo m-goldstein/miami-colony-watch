@@ -19,6 +19,26 @@ The OLED previously cleared and repainted its entire display every 250 ms. Firmw
 
 `npm run test:firmware` and all 46 `npm test` cases passed. The Uno build uses 15,332 / 32,256 bytes of flash and 823 / 2,048 bytes of static SRAM. The verified upload succeeded. The final capture received two valid readings and a malformed frame. Afterward, Chrome owned the same serial port, and a subsequent attempt reported it busy; competing readers may explain the malformed frame. Chrome's connection was left undisturbed. USB telemetry was not written into the real workspace. Local capture evidence is saved under ignored `test-results/device-validation-*.json`.
 
+## OpenAI photo classification update — November 8, 2026
+
+All 56 automated tests pass with Node 22.23.4. The client build, photo-upload, AI-review, rescue and mocked USB browser flows pass. One explicitly invoked live OpenAI `gpt-4.1-mini` smoke test classified the uploaded example cat photo, returned one possible match and reused the saved result on a second request without another model call. This verifies the integration on one example; it does not establish general cat re-identification accuracy.
+
+`test/cat-vision.test.js` covers the Responses request/schema, validated candidate IDs, ambiguous/non-cat/poor-image handling, sanitized provider failures, missing configuration, request coalescing, concurrency/rate bounds, persisted caching, roster invalidation, reset races, hardware-only refusal and bounded local references. `test/cat-vision-browser.js` covers optional automatic analysis, appearance labels, matching suggestions, explicit human confirmation, repeated reports sharing one ticket, reference-photo updates, direct ticket attachments, saved results, provider errors, opt-out and 320–1440 px layouts. Provider responses are mocked unless `CAT_VISION_LIVE_TEST=1` is explicitly set.
+
+The credential is loaded by the server from its environment; the local `.env` is ignored by Git and has mode `0600`. A scan confirmed the credential is absent from public assets, the client build, server source, tests and documentation. Browser and API responses expose only configuration status and model information. No provider error body is forwarded.
+
+Screenshots: `test-results/ai-photo-review-desktop.png` and `test-results/ai-photo-review-mobile.png`. The AI feature is real when configured, separate from the explicitly simulated RFID, gate, humidity and wireless hardware demonstrations.
+
+## Photo tickets and animated hardware update — November 8, 2026
+
+Validated with Node 22.23.4: all 48 automated tests and the client build passed. The rescue, photo-ticket, hardware and mocked USB browser suites passed. Browser checks use disposable databases and do not change the user's saved colony data.
+
+- Photo coverage: JPEG/PNG/WebP selection, browser resizing, JPEG persistence, preview/removal, malformed uploads, exact-file reuse hints, one reviewed cat and one open ticket across two source reports, direct ticket attachments, CSV references, and persistence through page reload and a new server instance. Reset removes only exercise images and records. Images stay outside the main care-state JSON.
+- Habitat coverage: RFID read/visit grouping, proposed humidity scenarios, offline event retention and replay, gate faults, state restoration, motion pause, system reduced motion, and desktop/phone layouts. These actions never operate physical hardware or alter Arduino measurements.
+- PCB and cost coverage: subsystem markers, motion pause, the sensing-first default, complete BOM reconciliation including the supplier's $7 reel fee, whole-hub rounding, 10/100/1,000-station comparisons, saved assumptions, exports, printing and 320–1440 px widths.
+
+Screenshots are in ignored `test-results/edge-concept-desktop.png`, `edge-concept-mobile.png`, `manufacturing-pcb.png`, `manufacturing-desktop.png`, `photo-review-desktop.png`, `photo-ticket-desktop.png` and `photo-upload-mobile.png`. PCB figures remain illustrative placement studies; no schematic/ERC/DRC, fabrication release or physical welfare validation is claimed.
+
 ## Verified story
 
 A fictional batch of messages, illustrative photos, location and clinic notes enters the rescue inbox. Human reviews link stable cat identities and aliases, create distinct identities only when justified, assign care, and retain dated visit/procedure evidence for reporting. The Arduino contributes a separate sensor-to-care path: DHT11 temperature on D7, firmware, USB gateway, authenticated storage, inspection work, and caregiver follow-through.
@@ -60,10 +80,10 @@ The Arduino AVR core emits its existing unused-parameter warnings in `new.cpp` o
 
 - Physical sensor wiring, target geometry, kibble repeatability, real weather exposure, enclosure safety, probe corrosion/drift, power, and real connectivity must be validated at the bench and during a supervised pilot.
 - Linux PTY testing verifies the software serial path; it does not verify a specific USB cable, board, sensor, or outdoor installation.
-- Temperature, humidity, rainfall rate, drinking-water quality, cat counts, and food consumption are not inferred from this kit. The rain/water views report local wetness and the food view reports approximate hopper fill.
+- Cat body temperature, humidity, rainfall rate, drinking-water quality, cat counts, and food consumption are not inferred from this kit. The rain/water views report local wetness and the food view reports approximate hopper fill.
 - A running gateway buffers network outages; a stopped gateway or unpowered Uno cannot reconstruct unrecorded serial data. The outbox has no automatic disk limit or expired-message deletion.
 - The direct dashboard keeps demo and live histories separate, has no automatic uploads or durable browser serial queue, and only saves live readings to the workspace on explicit request. Fictional visits/scenarios/plans persist in the isolated rescue exercise; linked live caregiver visits use the existing visit API. Web Serial requires a supported browser on localhost/HTTPS and exclusive ownership of the USB port.
-- Sample suggestions are prepared exercise annotations. No live AI extraction, automatic photo matching, actual chat import, multilingual support or hosted team authentication is claimed. The repeated photo is the existing generated illustrative asset; identities and procedure evidence remain human decisions.
+- Sample suggestions are prepared exercise annotations. Optional OpenAI vision now provides appearance descriptions and candidate matches for uploaded photos. Autonomous identity confirmation, actual chat import, multilingual support and hosted team authentication are not implemented. Exact hashes of prepared uploads flag repeated photo files for human review. The repeated photo is the existing generated illustrative asset; identities and procedure evidence remain human decisions.
 - Coordinator APIs trust the local computer. There is no public-user authentication, role-based location access, or external notification delivery.
 - `npm audit` reports one high-severity dependency entry for the explicitly requested, unsupported `angular@1.8.3`; no package fix is available. No claim is made that the audit is clean. Resolve the framework choice before public hosting.
 - No cloud database, Vercel deployment, or real colony rollout has been created. Source publication to GitHub does not deploy the application. The deployment document is a migration/runbook, not evidence of production readiness.

@@ -44,6 +44,21 @@ try {
   await action(() => page.locator('#concept-hub-online').check()); await action(() => page.locator('#concept-sync').click());
   assert.equal(await page.locator('#concept-queue').innerText(), '0'); assert.equal(await page.locator('#concept-acked').innerText(), '6');
   await action(() => page.locator('#concept-replay').click()); assert.equal(await page.locator('#concept-acked').innerText(), '6');
+  await action(() => page.locator('[data-habitat-weather=rain]').click());
+  assert.match(await page.locator('#habitat-climate').innerText(), /83% RH/);
+  assert.equal(await page.locator('#habitat-scene').getAttribute('data-weather'), 'rain');
+  await action(() => page.locator('#habitat-offline').click());
+  await action(() => page.locator('#habitat-read').click());
+  assert.match(await page.locator('#habitat-connection').innerText(), /Offline/);
+  assert.equal(await page.locator('#habitat-scene').getAttribute('data-action'), 'read');
+  await page.locator('#habitat-motion').click();
+  assert.equal(await page.locator('.habitat-cat').evaluate(cat => getComputedStyle(cat).animationPlayState), 'paused');
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('#habitat-climate').filter({ hasText: '83% RH' }).waitFor();
+  assert.equal(await page.locator('#habitat-scene').getAttribute('data-hub'), 'offline');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  assert.equal(await page.locator('.habitat-cat').evaluate(cat => getComputedStyle(cat).animationName), 'none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   for (const [table, records] of Object.entries(physical)) assert.deepEqual(context.store.list(table), records);
   mkdirSync('test-results', { recursive: true });
   await page.locator('#future-station').screenshot({ path: 'test-results/edge-concept-desktop.png', animations: 'disabled' });
@@ -52,14 +67,18 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'care desk must fit mobile viewport');
 
   await page.setViewportSize({ width: 1440, height: 1080 }); await page.goto(`${base}/manufacturing.html`, { waitUntil: 'networkidle' });
-  await page.locator('#estimate-unit').filter({ hasText: '$175.12' }).waitFor();
+  await page.locator('#estimate-unit').filter({ hasText: '$84.97' }).waitFor();
+  await page.locator('#board-motion').click();
+  assert.equal(await page.locator('.hero-board').evaluate(board => getComputedStyle(board).animationPlayState), 'paused');
   for (const figure of await page.locator('main img').all()) {
     await figure.scrollIntoViewIfNeeded(); await figure.evaluate(img => img.decode());
     assert.ok(await figure.evaluate(img => img.complete && img.naturalWidth > 0), `diagram loads: ${await figure.getAttribute('src')}`);
   }
   await page.locator('[data-board-part=rfid]').click(); assert.match(await page.locator('#part-description').innerText(), /caregiver associates/);
+  await page.locator('[data-pcb-zone=power]').click(); assert.match(await page.locator('#part-title').innerText(), /protected input/);
+  assert.equal(await page.locator('.scale-card').count(), 3);
   await page.locator('[data-preset=sense]').click(); assert.equal(await page.locator('#estimate-unit').innerText(), money(estimateBuild(PRESETS.sense).unitTotal));
-  await page.locator('[data-preset=network]').click(); assert.equal(await page.locator('#estimate-unit').innerText(), '$185.22');
+  await page.locator('[data-preset=network]').click(); assert.equal(await page.locator('#estimate-unit').innerText(), '$185.30');
   await page.locator('#build-quantity').fill('11'); assert.match(await page.locator('#estimate-hubs').innerText(), /2 new shared/);
   await page.locator('input[name=existingHub]').check(); assert.match(await page.locator('#estimate-hubs').innerText(), /already-owned/);
   await page.locator('#build-quantity').fill('0'); assert.equal(await page.locator('#download-bom').isDisabled(), true); assert.equal(await page.locator('#estimate-unit').innerText(), '—');

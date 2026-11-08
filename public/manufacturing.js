@@ -1,4 +1,4 @@
-import { DEFAULT_BUILD, PRESETS, SOURCES, RESEARCH_DATE, estimateBuild, money } from './manufacturing-model.js';
+import { DEFAULT_BUILD, PRESETS, SOURCES, RESEARCH_DATE, estimateBuild, compareScale, money } from './manufacturing-model.js';
 
 const el = id => document.getElementById(id);
 const element = (tag, content, className) => { const item = document.createElement(tag); if (content != null) item.textContent = content; if (className) item.className = className; return item; };
@@ -14,7 +14,11 @@ const parts = {
 };
 function showPart(key) {
   const part = parts[key];
+  const position = { controller: [39, 30], climate: [70, 22], rfid: [20, 27], actuator: [65, 76], power: [26, 62], radio: [60, 61] }[key];
+  const board = document.querySelector('.board-canvas'); board.dataset.focus = key;
+  board.style.setProperty('--part-x', `${position[0]}%`); board.style.setProperty('--part-y', `${position[1]}%`);
   for (const button of document.querySelectorAll('[data-board-part]')) button.setAttribute('aria-pressed', String(button.dataset.boardPart === key));
+  for (const button of document.querySelectorAll('[data-pcb-zone]')) button.setAttribute('aria-pressed', String(button.dataset.pcbZone === key));
   el('part-kicker').textContent = part.kicker; el('part-title').textContent = part.title; el('part-description').textContent = part.description;
   el('part-specs').replaceChildren();
   for (const [label, value] of Object.entries(part.specs)) el('part-specs').append(element('dt', label), element('dd', value));
@@ -64,7 +68,8 @@ function render() {
     for (const id of ['estimate-unit', 'estimate-board', 'estimate-batch']) el(id).textContent = '—';
     el('estimate-unit-note').textContent = 'Correct the highlighted assumptions to calculate';
     for (const id of ['cost-bars', 'bom-body', 'bom-footer']) el(id).replaceChildren();
-    el('estimate-hubs').textContent = ''; el('estimate-recurring').textContent = ''; return;
+    el('estimate-hubs').textContent = ''; el('estimate-recurring').textContent = '';
+    el('scale-cards').replaceChildren(); el('lean-savings').textContent = 'Correct the budget inputs to compare builds.'; return;
   }
   const e = estimate, qty = e.config.quantity;
   el('estimate-unit').textContent = money(e.unitTotal); el('estimate-board').textContent = money(e.boardUnit); el('estimate-batch').textContent = money(e.batchTotal);
@@ -72,6 +77,17 @@ function render() {
   el('estimate-hubs').textContent = e.hubCount ? `${e.hubCount} new shared ${e.config.radio === 'ble' ? 'BLE' : 'point-to-point LoRa'} hubs × ${money(e.hubUnit)} = ${money(e.hubTotal)} per batch. The final partial group still needs a whole hub.` : config.radio === 'wifi' ? 'Wi-Fi uses existing access points / backhaul; no new hub purchase is budgeted.' : 'Compatible, already-owned hubs selected; no new hub purchase is budgeted.';
   el('estimate-recurring').textContent = `Build + setup + freight + hub allocation: ${money(e.recurringBuildUnit)} / node before contingency and one-time design. Ongoing operations and exclusions below remain separate.`;
   el('estimate-exclusions').textContent = e.exclusion;
+  const lean = estimateBuild({ ...config, ...PRESETS.sense }), care = estimateBuild({ ...config, ...PRESETS.care });
+  el('lean-savings').textContent = `At ${qty.toLocaleString()} stations, the sensing-first build is ${money(lean.unitTotal)} / station, ${money(care.unitTotal - lean.unitTotal)} less than the visit-reader + food-gate build with BLE hubs under these assumptions. Add those modules where the care team needs them.`;
+  el('scale-cards').replaceChildren();
+  for (const scaled of compareScale(config)) {
+    const card = element('article', null, 'scale-card');
+    card.dataset.selected = String(scaled.config.quantity === qty);
+    card.append(element('span', `${scaled.config.quantity.toLocaleString()} stations`), element('strong', money(scaled.unitTotal)), element('small', 'per station · allocated estimate'),
+      element('p', `${money(scaled.developmentPerUnit)} design budget / station · ${scaled.hubCount} new hubs`));
+    const choose = element('button', 'Use this batch ↗', 'text-link'); choose.type = 'button';
+    choose.addEventListener('click', () => { form.elements.quantity.value = scaled.config.quantity; render(); }); card.append(choose); el('scale-cards').append(card);
+  }
   el('cost-bars').replaceChildren();
   for (const group of e.groups) {
     const row = element('div', null, 'cost-bar'), track = element('div', null, 'cost-bar-track'), fill = element('i');
@@ -118,10 +134,16 @@ function downloadBrief() {
 }
 form.addEventListener('submit', event => event.preventDefault()); form.addEventListener('input', render); form.addEventListener('change', render);
 for (const button of document.querySelectorAll('[data-board-part]')) button.addEventListener('click', () => showPart(button.dataset.boardPart));
+for (const button of document.querySelectorAll('[data-pcb-zone]')) button.addEventListener('click', () => showPart(button.dataset.pcbZone));
 for (const button of document.querySelectorAll('[data-radio-view]')) button.addEventListener('click', () => showRadio(button.dataset.radioView));
 for (const button of document.querySelectorAll('[data-preset]')) button.addEventListener('click', () => { fillForm({ ...readForm(), ...PRESETS[button.dataset.preset] }); showRadio(PRESETS[button.dataset.preset].radio); render(); });
 for (const button of document.querySelectorAll('[data-quantity]')) button.addEventListener('click', () => { form.elements.quantity.value = button.dataset.quantity; render(); });
 el('reset-build').addEventListener('click', () => { fillForm(DEFAULT_BUILD); showRadio(DEFAULT_BUILD.radio); render(); });
+el('use-lean-build').addEventListener('click', () => { fillForm({ ...readForm(), ...PRESETS.sense }); showRadio('wifi'); render(); });
+const motionButton = el('board-motion'), motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
+const setBoardMotion = paused => { document.body.classList.toggle('board-motion-paused', paused); motionButton.setAttribute('aria-pressed', String(paused)); motionButton.textContent = paused ? 'Play board motion' : 'Pause board motion'; };
+setBoardMotion(motionPreference.matches); motionPreference.addEventListener('change', event => setBoardMotion(event.matches));
+motionButton.addEventListener('click', () => setBoardMotion(motionButton.getAttribute('aria-pressed') !== 'true'));
 el('print-build').addEventListener('click', () => window.print()); el('download-bom').addEventListener('click', downloadBOM); el('download-brief').addEventListener('click', downloadBrief);
 let initial = DEFAULT_BUILD;
 try { const saved = JSON.parse(localStorage.getItem(storageKey)); if (saved && estimateBuild(saved)) initial = { ...DEFAULT_BUILD, ...saved }; } catch { /* Ignore invalid saved browser preferences. */ }

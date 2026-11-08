@@ -3,6 +3,8 @@ import { id, text, number, fail } from './domain.js';
 import { scenarios } from '../public/colony-demo.js';
 import { temperatureState, TEMPERATURE_ALERTS } from '../public/temperature.js';
 import { initialEdgeConcept, applyEdgeConcept } from './edge-concept.js';
+import { saveCarePhoto } from './care-photos.js';
+import { catVisionContext } from './cat-vision.js';
 
 const DEMO_ID = 'south-point-exercise-v1';
 const photo = '/assets/miami-community-cat.png';
@@ -70,7 +72,7 @@ export function careReport(state, from, to) {
     evidence, disclaimer: 'Fictional demonstration records. Current census totals are separate from dated activity. No animal-welfare or time-saved outcomes are inferred.' };
 }
 
-export function careDemoRouter(store, enabled) {
+export function careDemoRouter(store, enabled, catVisionService) {
   const router = Router();
   router.use((req, res, next) => { if (!enabled) return res.status(403).json({ error: 'The fictional rescue exercise is disabled in hardware-only mode.' }); next(); });
   const load = () => {
@@ -88,6 +90,31 @@ export function careDemoRouter(store, enabled) {
   const change = work => store.transaction(() => { const state = load(); work(state); store.put('care_demo', state); return state; });
   const find = (state, collection, recordId) => { const record = state[collection].find(item => item.id === recordId); if (!record) fail('Exercise record not found', 404); return record; };
   router.get('/', (req, res) => res.json(load()));
+  router.get('/photo-analysis/status', (req, res) => res.json(catVisionService.status()));
+  router.post('/photos/:id/analyze', async (req, res) => {
+    if (!/^[a-f0-9]{64}$/.test(req.params.id)) fail('Photo not found', 404);
+    const photo = store.db.prepare('SELECT data FROM care_photos WHERE id = ?').get(req.params.id);
+    if (!photo) fail('Photo not found', 404);
+    const before = load(), context = catVisionContext(before, store, catVisionService.model);
+    const cached = before.photoAnalyses?.[req.params.id];
+    if (cached?.fingerprint === context.fingerprint) return res.json({ analysis: cached, cached: true });
+    const analysis = await catVisionService.analyze({ photoId: req.params.id, data: photo.data, context });
+    change(state => {
+      if (state.createdAt !== before.createdAt || !store.db.prepare('SELECT id FROM care_photos WHERE id = ?').get(req.params.id)) fail('The exercise changed while analysis was running. No result was added.', 409);
+      state.photoAnalyses ||= {};
+      if (state.photoAnalyses[req.params.id]?.fingerprint !== analysis.fingerprint) {
+        state.photoAnalyses[req.params.id] = analysis;
+        event(state, 'photo_analyzed', { title: 'AI photo suggestions saved for human review', reference: `/api/care-demo/photos/${req.params.id}` });
+      }
+    });
+    res.json({ analysis, cached: false });
+  });
+  router.get('/photos/:id', (req, res) => {
+    if (!/^[a-f0-9]{64}$/.test(req.params.id)) fail('Photo not found', 404);
+    const photo = store.db.prepare('SELECT data FROM care_photos WHERE id = ?').get(req.params.id);
+    if (!photo) fail('Photo not found', 404);
+    res.type('image/jpeg').set('Content-Disposition', 'inline; filename="cat-photo.jpg"').send(Buffer.from(photo.data));
+  });
   router.post('/import', (req, res) => res.json(change(state => {
     if (state.importedAt) return;
     state.importedAt = stamp(); state.updates.push(...sampleBatch());
@@ -100,7 +127,10 @@ export function careDemoRouter(store, enabled) {
       text: text(req.body.text, 'field update', 1500), observedAt: stamp(), receivedAt: stamp(),
       status: 'pending', provenance: 'Fictional phone form', suggestedAction: 'existing', concern: req.body.needsCare === true ? 'care' : null,
       followUp: req.body.needsCare === true ? 'Review the caregiver’s field concern' : null, severity: 'warning' };
-    state.updates.push(update); event(state, 'update_received', { sourceId: update.id, title: 'Phone update received for review' });
+    const uploaded = saveCarePhoto(store, req.body.photo);
+    if (uploaded) Object.assign(update, { photo: uploaded, attachment: uploaded.url, kind: 'photo', provenance: 'Uploaded photo · exercise field form',
+      samePhotoSources: state.updates.filter(item => item.photo?.id === uploaded.id).map(item => item.id) });
+    state.updates.push(update); event(state, 'update_received', { sourceId: update.id, title: uploaded ? 'Photo report received for review' : 'Phone update received for review' });
   })));
   router.post('/updates/:id/review', (req, res) => res.json(change(state => {
     const update = find(state, 'updates', req.params.id), body = req.body;
@@ -109,6 +139,11 @@ export function careDemoRouter(store, enabled) {
     if (!['existing', 'new', 'colony', 'procedure', 'dismiss'].includes(decision)) fail('Choose a review decision');
     let cat;
     if (decision === 'existing' || decision === 'procedure') cat = find(state, 'cats', text(body.catId, 'cat identity', 80));
+    let relatedTask;
+    if (body.relatedTaskId) {
+      relatedTask = find(state, 'tasks', text(body.relatedTaskId, 'related ticket', 80));
+      if (!['existing', 'colony'].includes(decision) || relatedTask.status === 'completed' || (relatedTask.catId || null) !== (cat?.id || null)) fail('Choose an open ticket for the same reviewed cat or colony note.', 409);
+    }
     if (decision === 'new') {
       const name = text(body.name, 'cat name', 70), normalized = name.toLowerCase();
       if (state.cats.some(item => [item.name, ...item.aliases].some(alias => alias.toLowerCase() === normalized))) fail('That name or alias already exists. Link the existing identity or review the match.', 409);
@@ -133,13 +168,22 @@ export function careDemoRouter(store, enabled) {
         cat.aliases.push(alias);
       }
     }
-    if (cat) { cat.observations.push(update.id); if (decision !== 'procedure') cat.lastSeenAt = update.observedAt; }
+    if (cat) {
+      cat.observations.push(update.id);
+      if (decision !== 'procedure') cat.lastSeenAt = update.observedAt;
+      if ((!cat.photo && update.attachment) || (update.photo && decision !== 'procedure')) cat.photo = update.attachment;
+    }
     Object.assign(update, { status: decision === 'dismiss' ? 'dismissed' : 'reviewed', decision, catId: cat?.id || null, reviewer, reviewNote: note, reviewedAt: stamp() });
     const record = event(state, 'update_reviewed', { sourceId: update.id, catId: cat?.id || null, title: `${reviewer} ${decision === 'dismiss' ? 'dismissed' : 'reviewed'} ${update.author}’s update`, decision, reviewer, note });
     update.evidenceId = record.id;
-    if (decision !== 'dismiss' && decision !== 'procedure' && (update.concern || decision === 'new')) {
-      addTask(state, { type: decision === 'new' ? 'identity' : update.concern, sourceId: update.id, catId: cat?.id || null,
+    if (relatedTask) {
+      relatedTask.sourceIds = [...new Set([relatedTask.sourceId, ...(relatedTask.sourceIds || []), update.id])];
+      relatedTask.updatedAt = stamp(); update.taskId = relatedTask.id;
+      event(state, 'report_linked', { sourceId: update.id, taskId: relatedTask.id, catId: cat?.id || null, reviewer, title: 'Additional report linked to an existing care ticket', note });
+    } else if (decision !== 'dismiss' && decision !== 'procedure' && (update.concern || decision === 'new')) {
+      const task = addTask(state, { type: decision === 'new' ? 'identity' : update.concern, sourceId: update.id, catId: cat?.id || null,
         title: decision === 'new' ? `Review identity and TNVR needs: ${cat.name}` : update.followUp || 'Review the field concern', severity: update.severity || 'warning', origin: 'caregiver update' });
+      update.taskId = task.id;
     }
   })));
   router.patch('/tasks/:id', (req, res) => res.json(change(state => {
@@ -149,6 +193,14 @@ export function careDemoRouter(store, enabled) {
     if (!['assigned', 'completed'].includes(status)) fail('Choose assigned or completed');
     const dueAt = text(body.dueAt || '', 'check-in time', 40, false);
     if (dueAt && !Number.isFinite(Date.parse(dueAt))) fail('Choose a valid check-in time');
+    if (body.photo) {
+      const photo = saveCarePhoto(store, body.photo); task.photos ||= [];
+      if (!task.photos.some(item => item.id === photo.id)) {
+        if (task.photos.length >= 6) fail('A ticket can hold six care-visit photos. Add further evidence through a field update.', 409);
+        task.photos.push({ ...photo, author: assignee, addedAt: stamp() });
+        event(state, 'photo_attached', { taskId: task.id, sourceId: task.sourceId, title: 'Caregiver attached a ticket photo', assignee, reference: photo.url });
+      }
+    }
     const at = stamp(); Object.assign(task, { status, assignee, dueAt, updatedAt: at });
     event(state, status === 'completed' ? 'task_completed' : 'task_assigned', { taskId: task.id, sourceId: task.sourceId, catId: task.catId || null, title: task.title, assignee, note });
     if (status === 'completed') {
@@ -211,15 +263,15 @@ export function careDemoRouter(store, enabled) {
       ['CURRENT CENSUS'], ...Object.entries(report.current), ['DATED ACTIVITY'], ...Object.entries(report.period),
       ['EVIDENCE ID', 'WHEN', 'KIND', 'SOURCE ID', 'CAT ID', 'DETAIL', 'REVIEWER / CAREGIVER', 'REFERENCE', 'RECORDED AT', 'EVIDENCE NOTE', 'AMBIENT TEMPERATURE C'],
       ...report.evidence.map(item => [item.id, item.occurredAt, item.kind, item.sourceId, item.catId, item.title, item.reviewer || item.assignee, item.reference, item.recordedAt || item.occurredAt, item.note, item.reading?.online ? item.reading.temperatureC : null]),
-      ['ORIGINAL SOURCE ID', 'OBSERVED AT', 'KIND', 'AUTHOR', 'ORIGINAL WORDS', 'ATTACHMENT', 'REVIEW STATUS', 'LINKED CAT', 'REVIEW NOTE'],
+      ['ORIGINAL SOURCE ID', 'OBSERVED AT', 'KIND', 'AUTHOR', 'ORIGINAL WORDS', 'ATTACHMENT', 'REVIEW STATUS', 'LINKED CAT', 'REVIEW NOTE', 'CARE TICKET'],
       ...state.updates.filter(update => report.evidence.some(item => item.sourceId === update.id) || (update.observedAt.slice(0, 10) >= report.from && update.observedAt.slice(0, 10) <= report.to))
-        .map(update => [update.id, update.observedAt, update.kind, update.author, update.text, update.attachment, update.status, update.catId, update.reviewNote]),
+        .map(update => [update.id, update.observedAt, update.kind, update.author, update.text, update.attachment, update.status, update.catId, update.reviewNote, update.taskId]),
       ['LIMITATION', report.disclaimer]];
     res.type('text/csv').attachment('south-point-care-evidence.csv').send(rows.map(row => row.map(cell).join(',')).join('\r\n'));
   });
   router.post('/reset', (req, res) => {
     if (req.body.confirm !== 'reset-fictional-exercise') fail('Confirm the fictional exercise reset');
-    res.json(store.put('care_demo', initialCareDemo()));
+    res.json(store.transaction(() => { store.db.exec('DELETE FROM care_photos'); return store.put('care_demo', initialCareDemo()); }));
   });
   return router;
 }

@@ -1,4 +1,5 @@
 import { conceptSummary } from './edge-concept-model.js';
+import { habitatMarkup } from './habitat-scene.js';
 const el = id => document.getElementById(id);
 const put = (id, value) => { el(id).textContent = value; };
 const node = (tag, className, content) => { const element = document.createElement(tag); if (className) element.className = className; if (content != null) element.textContent = content; return element; };
@@ -6,6 +7,18 @@ const time = at => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute
 export class EdgeConceptUI {
   constructor({ act, notify }) {
     this.act = act; this.notify = notify; this.state = null; this.pending = false; this.lastAttempt = null;
+    el('habitat').innerHTML = habitatMarkup;
+    this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    this.setMotion(this.reducedMotion.matches);
+    this.reducedMotion.addEventListener('change', event => this.setMotion(event.matches));
+    el('habitat-motion').addEventListener('click', () => this.setMotion(el('habitat-motion').getAttribute('aria-pressed') !== 'true'));
+    el('habitat-read').addEventListener('click', () => { void this.send({ action: 'read', tag: 'mango' }); });
+    el('habitat-feed').addEventListener('click', () => {
+      this.lastAttempt ||= { requestId: crypto.randomUUID(), targetGrams: 10 };
+      void this.send({ action: 'dispense', ...this.lastAttempt }).then(ok => { if (ok) this.lastAttempt = null; });
+    });
+    el('habitat-offline').addEventListener('click', () => { if (this.state) void this.send({ action: 'wireless', mode: this.state.edgeConcept.wireless.mode, hubOnline: !this.state.edgeConcept.wireless.hubOnline }); });
+    for (const button of document.querySelectorAll('[data-habitat-weather]')) button.addEventListener('click', () => { void this.send({ action: 'climate', scenario: button.dataset.habitatWeather }); });
     el('concept-read').addEventListener('click', () => { void this.send({ action: 'read', tag: el('concept-tag').value }); });
     el('concept-return').addEventListener('click', () => { void this.send({ action: 'read', tag: el('concept-tag').value, returnAfterGap: true }); });
     el('concept-link-form').addEventListener('submit', event => { event.preventDefault(); void this.send({ action: 'link', catId: el('concept-link-cat').value, reviewer: el('concept-link-author').value.trim() }); });
@@ -25,16 +38,43 @@ export class EdgeConceptUI {
     if (this.pending || !this.state) return false;
     this.pending = true; this.buttons(); put('concept-status', 'Saving the simulated device event…');
     try {
-      await this.act(body); put('concept-status', 'Concept event saved. No physical reader, dispenser or radio was operated.'); return true;
-    } catch (error) { put('concept-status', error.message); return false; }
+      await this.act(body); put('concept-status', 'Concept event saved. No physical reader, dispenser or radio was operated.');
+      const c = this.state.edgeConcept;
+      const messages = { read: c.reads.at(-1)?.repeated ? 'Another antenna read, the same visit. No extra visitor was counted.' : 'A visitor passed the loop. The saved visit follows the reviewed chip identity.',
+        dispense: 'Gate cycle previewed. The target is illustrative; delivered food is unmeasured.', climate: `${c.climate?.humidityPercent}% RH simulated. Shelter, airflow and water still need a caregiver check.`,
+        wireless: c.wireless.hubOnline ? 'Hub available again. Sync the saved queue from the wireless tile below.' : 'Hub offline. The local event queue keeps the next observations.',
+        jam: 'Jam simulated. The gate stays inhibited until a mock inspection is recorded.', inspect: 'Mock inspection recorded. The normal cooldown still applies.', sync: 'Queued packet identities acknowledged once.', replay: 'Replayed packets keep their original identity. No double count.' };
+      put('habitat-status', messages[body.action] || 'Simulated event saved in the station log.');
+      clearTimeout(this.animationTimer); const scene = el('habitat-scene'); scene.dataset.action = '';
+      void scene.getBoundingClientRect(); scene.dataset.action = body.action;
+      this.animationTimer = setTimeout(() => { scene.dataset.action = ''; }, 2600);
+      return true;
+    } catch (error) { put('concept-status', error.message); put('habitat-status', error.message); return false; }
     finally { this.pending = false; this.buttons(); }
   }
   buttons() {
-    document.querySelectorAll('#future-station button').forEach(button => { button.disabled = this.pending || !this.state; });
-    if (this.state?.edgeConcept.dispenser.fault) el('concept-dispense').disabled = true;
+    document.querySelectorAll('#future-station button:not(#habitat-motion)').forEach(button => { button.disabled = this.pending || !this.state; });
+    if (this.state?.edgeConcept.dispenser.fault) { el('concept-dispense').disabled = true; el('habitat-feed').disabled = true; }
+  }
+  setMotion(paused) {
+    el('habitat-scene').classList.toggle('motion-paused', paused);
+    el('habitat-motion').setAttribute('aria-pressed', String(paused));
+    put('habitat-motion', paused ? 'Play motion' : 'Pause motion');
   }
   update(state) {
     this.state = state; const c = state.edgeConcept, summary = conceptSummary(c);
+    const climate = c.climate || { scenario: 'calm', humidityPercent: 56, temperatureC: 26 };
+    el('habitat-scene').dataset.weather = climate.scenario;
+    el('habitat-scene').dataset.hub = c.wireless.hubOnline ? 'online' : 'offline';
+    el('habitat-scene').dataset.fault = c.dispenser.fault || 'none';
+    put('habitat-climate', `${climate.temperatureC}°C · ${climate.humidityPercent}% RH`);
+    const lastVisitor = state.cats.find(cat => cat.id === c.bindings[c.reads.at(-1)?.token]?.catId);
+    put('habitat-visitor', c.reads.length ? lastVisitor?.name || 'Unlinked chip · review' : 'Ready for Mango');
+    put('habitat-visitor-note', `${summary.rawReads} reads → ${summary.sessions} visits → ${summary.uniqueLinkedCats} linked cats`);
+    put('habitat-connection', c.wireless.hubOnline ? 'Hub available' : 'Offline · events retained');
+    put('habitat-queue', `${summary.queued} packets waiting · ${summary.acknowledged} acknowledged`);
+    put('habitat-offline', c.wireless.hubOnline ? 'Take hub offline' : 'Bring hub online');
+    for (const button of document.querySelectorAll('[data-habitat-weather]')) button.setAttribute('aria-pressed', String(button.dataset.habitatWeather === climate.scenario));
     put('concept-unique', summary.uniqueLinkedCats); put('concept-sessions', summary.sessions); put('concept-reads', summary.rawReads); put('concept-unlinked', summary.unlinkedTags);
     put('concept-clock', `Concept clock ${time(c.clockMs)} · this fictional run`);
     const latest = c.reads.at(-1); put('concept-read-result', latest ? latest.repeated ? 'Repeated antenna read · grouped into the same visit' : 'New close-range visit session recorded' : 'A chip-linked visit starts with a close pass by the antenna.');

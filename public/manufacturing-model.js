@@ -2,7 +2,7 @@
 export const RESEARCH_DATE = '2026-11-08';
 export const SOURCES = {
   esp: { name: 'Espressif · ESP32-S3 modules', url: 'https://www.espressif.com/en/products/modules?id=ESP32-S3', note: 'Module family and reference sample pricing. The $3.50 line below is a planning allowance.' },
-  sht: { name: 'DigiKey · Sensirion SHTC3', url: 'https://www.digikey.com/en/products/detail/sensirion-ag/SHTC3-TR-2-5KS/8628148', note: 'Public USD price breaks: $2.15 at 1, $1.906 at 5, $1.816 at 10, $1.571 at 100, $1.38772 at 1,000. A bare IC, not an outdoor probe.' },
+  sht: { name: 'DigiKey · Sensirion SHTC3', url: 'https://www.digikey.com/en/products/detail/sensirion-ag/SHTC3-TR-2-5KS/8628148', note: 'Public USD Digi-Reel price breaks: $2.15 at 1, $1.906 at 5, $1.816 at 10, $1.571 at 100, $1.38772 at 1,000, plus a $7 reeling fee per order included below. A bare IC, not an outdoor probe.' },
   sonar: { name: 'DFRobot · A02YYUW', url: 'https://www.dfrobot.com/product-1935.html', note: 'Public USD single-unit reference $15.90. The sensor is IP67; this does not rate the whole station.' },
   rfid: { name: 'Priority 1 Design · animal-tag reader', url: 'https://www.priority1design.com.au/shopfront/index.php?main_page=product_info&products_id=10', note: 'Protocol and reader/antenna capability reference. The USD $45 reader budget is our allowance, not a converted or confirmed supplier quote.' },
   rfidData: { name: 'Reader datasheet · UART and power', url: 'https://www.priority1design.com.au/rfidrw-e-ttl.pdf', note: 'FDX-B/HDX support, 3.3 V / 5 V serial options, external coil, 5.5–15 V supply. Antenna geometry needs validation.' },
@@ -15,7 +15,7 @@ export const SOURCES = {
   gps: { name: 'AAHA · microchip FAQs', url: 'https://www.aaha.org/resources/pet-microchipping-faqs/', note: 'A microchip provides an identifier to a nearby reader; it is not a GPS tracker.' },
   gateway: { name: 'Semtech · gateway architecture', url: 'https://www.semtech.com/design-support/faq/faq-gateway', note: 'A LoRaWAN concentrator gateway is different from the simpler point-to-point LoRa hub budgeted here.' }
 };
-export const DEFAULT_BUILD = Object.freeze({ quantity: 100, radio: 'ble', rfid: true, dispenser: true, outdoorSonar: true,
+export const DEFAULT_BUILD = Object.freeze({ quantity: 100, radio: 'wifi', rfid: false, dispenser: false, outdoorSonar: true,
   stationsPerHub: 10, existingHub: false, setup: 65, development: 1500, freight: 40, contingency: 15 });
 export const PRESETS = Object.freeze({
   sense: { label: 'Sense', rfid: false, dispenser: false, radio: 'wifi' },
@@ -38,6 +38,7 @@ export function estimateBuild(input) {
     row('passives', 'Connectors, passives, status LED and test pads', 2.75, 'Controller board', null),
     row('pcb', 'Two-layer FR-4 controller board · minimum 5-board allowance', Math.max(5, c.quantity) * 1.50 / c.quantity, 'Controller board', 'pcb'),
     row('assembly', 'Placement / soldering allowance', 4.00, 'Manufacturing', 'assembly'),
+    row('reel', 'SHTC3 Digi-Reel preparation · $7 per batch', 7 / c.quantity, 'Manufacturing', 'sht', 'Published USD reeling fee; one order per batch'),
     row('qa', 'Programming, functional test and calibration allowance', 3.00, 'Manufacturing', null),
     row('sonar', c.outdoorSonar ? 'A02YYUW protected ultrasonic food-level sensor' : 'Sheltered bench ultrasonic sensor + level interface', c.outdoorSonar ? 15.90 : 3.50, 'Sensing', c.outdoorSonar ? 'sonar' : null, c.outdoorSonar ? 'Published single-unit USD reference; no volume discount assumed' : 'Engineering allowance · bench use'),
     row('wetness', 'Replaceable rain plate / base-wetness probes', 3.00, 'Sensing', null),
@@ -61,6 +62,10 @@ export function estimateBuild(input) {
     { name: 'Contingency / node', amount: contingencyPerUnit }, { name: 'One-time design budget / node', amount: developmentPerUnit });
   return { config: c, lines, groups, boardUnit, partsUnit, hubCount, hubUnit, hubTotal, setupPerUnit, freightPerUnit,
     contingencyPerUnit, developmentPerUnit, recurringBuildUnit, unitTotal, batchTotal: unitTotal * c.quantity,
-    exclusion: 'Tax/duties, regulatory testing, further tooling/PCB revisions, food, veterinary microchipping, field visits and ongoing hub/cloud/backhaul costs are not included. Blank assumptions are not supplier quotes.' };
+    exclusion: 'Tax/duties, regulatory testing, further tooling/PCB revisions, site canopy and resting furniture, bowls, food, veterinary microchipping, field visits and ongoing hub/cloud/backhaul costs are not included. Blank assumptions are not supplier quotes.' };
+}
+export function compareScale(config) {
+  if (!estimateBuild(config)) return null;
+  return [10, 100, 1000].map(quantity => estimateBuild({ ...config, quantity }));
 }
 export const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);

@@ -6,7 +6,7 @@ This review branch leads with the Bonus hackathon challenge: scattered field upd
 
 **Review branch:** `review/bonus-cat-care`, in the separate `miami-colony-watch-judges` worktree. The original checkout, running site, and database remain unchanged. [Review instructions and demo walkthrough](docs/BONUS_REVIEW.md).
 
-**Next-device design:** the homepage now includes conceptual microchip visits, a guarded food-gate simulator and an offline hub queue. **Build costs** at `/manufacturing.html` adds four editable hardware diagrams, Wi-Fi / BLE / LoRa options, an adjustable manufacturing budget, BOM / brief downloads and printable output. These features simulate proposed equipment; the working Arduino temperature demo remains intact. [Architecture, assumptions and walkthrough](docs/EDGE_NODE_DESIGN.md).
+**Next-device design:** the homepage now includes an animated sheltered habitat, conceptual microchip visits, a guarded food-gate simulator, humidity scenarios and an offline hub queue. **Build costs** at `/manufacturing.html` adds four editable hardware diagrams, Wi-Fi / BLE / LoRa options, an adjustable sensing-first manufacturing budget, 10 / 100 / 1,000-station comparisons, BOM / brief downloads and printable output. These features simulate proposed equipment; the working Arduino temperature demo remains intact. [Architecture, assumptions and walkthrough](docs/EDGE_NODE_DESIGN.md).
 
 The original component-test sketch remains unchanged in the neighboring `pins_layout/` directory. Monitoring firmware lives in this project's `firmware/colony_monitor/` directory.
 
@@ -30,11 +30,25 @@ The separate field-workspace demonstration contains **six fictional colonies, 80
 
 ## Try the rescue story
 
-The homepage care inbox preserves original sources and human review decisions. Two Mango/“Stripey” photo updates link to one stable identity. Pippa’s care concern produces a follow-up with an owner and a recorded outcome; a separately verified fictional clinic note records her TNVR procedure by date. Pebble can become a new identity with TNVR unknown. Phone notes follow the same review path. Sample suggestions are prepared annotations, not live AI or automatic photo matching.
+The homepage care inbox preserves original sources and human review decisions. Two Mango/“Stripey” photo updates link to one stable identity. Pippa’s care concern produces a follow-up with an owner and a recorded outcome; a separately verified fictional clinic note records her TNVR procedure by date. Pebble can become a new identity with TNVR unknown. Phone notes follow the same review path. **Add a field update** accepts a JPEG, PNG or WebP cat photo up to 10 MB. The browser resizes it to at most 1,600 pixels and 512 KB and re-encodes it as JPEG without EXIF/location metadata. Photos persist in a separate SQLite table and are served only as images. An exact prepared-file match flags earlier reports; a reviewer compares markings and context, links the same cat, and can attach the source to an existing open care ticket. The ticket retains every original report and can also receive photos during assignment or completion. When configured, optional OpenAI vision describes visible markings and suggests existing cats to compare. Similarity never confirms identity automatically. Sample-batch suggestions remain prepared annotations.
 
 The report separates current census totals from dated sightings, distinct cats observed, documented procedures, visits and completed follow-ups. Its CSV includes event IDs, reviewer, clinic reference, original source text and review notes. The pilot planner accepts the team’s own quotes and maintenance assumptions; no vendor costs or volunteer-time savings are invented.
 
+Photo storage is scoped to the local rescue exercise (32 MB total, six direct attachments per ticket). Reset exercise deletes its uploaded images as well as its records. CSV exports retain photo URLs and shared ticket IDs; they do not embed the image bytes. Run `npm run test:photos-browser` to check upload, duplicate review, ticket attachment, server-restart persistence and reset.
+
 See [the complete walkthrough](docs/BONUS_REVIEW.md) and run `npm run test:rescue-browser` for the full UI → API → SQLite → reload path.
+
+## AI-assisted cat photo review
+
+Set `OPENAI_API_KEY` in the server environment or the ignored local `.env` file. Keep it out of `public/`, Git and browser settings. The default model is `gpt-4.1-mini`; `OPENAI_VISION_MODEL` can override it with a compatible image-input / structured-output model. `npm start`, `npm run dev` and `npm run review` load `.env` on Node 22.13+. Restart the server after changing its configuration.
+
+In **Add a field update**, attach a cat photo and leave **Suggest cat matches with OpenAI** checked. Saving retains the photo immediately, then the review panel shows visible coat colors, pattern, markings, image quality and up to three candidate records. **Compare with [cat]** selects an existing identity for review; **Confirm reviewed update** saves the human decision. If the same issue has an open ticket, link the new source to that ticket. Human-linked uploads become reference photos for future reports. Direct ticket attachments can also be analyzed.
+
+Only the resized upload, up to six local reference photos and up to 60 cat descriptions/names/aliases go to OpenAI; caregiver names, source-message text, coordinates and device keys are excluded from the request. The checkbox can be turned off. API requests use `store: false`; this disables Responses application-state storage, not every category of provider retention. See [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data). Photos and results remain saved in the local exercise until reset. An AI result does not change the census, create a ticket, verify TNVR or infer health.
+
+The server caches results by photo, model, prompt version and compared records. Matching concurrent requests share one call. Limits are two simultaneous calls, six new calls per minute, a 40-second timeout and 1,600 output tokens. Results are validated before saving; malformed output, refusals, quota errors and unavailable credentials leave manual review working. Comparison scope is shown, so a missing match cannot be mistaken for proof of a new cat. API usage costs are additional to hardware estimates.
+
+Implementation follows the official [vision input](https://developers.openai.com/api/docs/guides/images-vision), [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) and [GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini) documentation. `npm test` and `npm run test:vision-browser` use mocked provider responses and spend no API credits. An explicit one-call live smoke test is available with `CAT_VISION_LIVE_TEST=1 node --env-file-if-exists=.env test/cat-vision-browser.js`.
 
 ## Hardware and weather tools
 
@@ -84,7 +98,7 @@ The browser page clears current gauges when USB disconnects or measurements beco
 - **Research and reporting:** a community brief, a cited research document, and a downloadable colony/TNVR/visit summary CSV.
 - **Weather preparedness:** optional NWS South Beach outlook, illustrative storm exercises, persistent colony readiness/people/supply plans, and downloadable care handoffs.
 
-No SMS/email is sent, no photos are analyzed, and no chat account is accessed. The provided kit has no dispensing actuator; this system never automatically dispenses food or operates a trap.
+No SMS/email is sent and no chat account is accessed. Exact-file hashes detect photo reuse; optional OpenAI vision adds appearance descriptions and candidate matches, with human confirmation before changing identities or tickets. The provided kit has no dispensing actuator; this system never automatically dispenses food or operates a trap.
 
 ## Try the whole story
 
